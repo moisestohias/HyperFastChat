@@ -9,10 +9,7 @@
 {% include "chat_response.html" %}
 {% endwith %}
 {% endfor %}
-{% else %}
-<!-- Initial welcome message -->
-{% with sender='bot', message='Welcome! How can I help you today?', timestamp='System' %}
-{% include "chat_response.html" %}
-{% endwith %}
+
+
 {% endif %}
 {% endblock %}
