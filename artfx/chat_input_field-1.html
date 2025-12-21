@@ -6,7 +6,21 @@
       set #filePreview.innerHTML to ''">
 
     <!-- File Preview Area -->
-    <div id="filePreview" class="px-2 pt-2 flex flex-wrap gap-2"></div>
+    <!-- The hyperscript circus is to only change padding depending on whether the images are attachedd or not -->
+    <!-- Note the JS part is for sending an event to the element itself, to trigger the hyperscript action -->
+    <div id="filePreview" class="px-2 pt-0 flex flex-wrap gap-2" 
+         _="init 
+            js(me) 
+              new MutationObserver(() => me.dispatchEvent(new Event('check'))).observe(me, {childList: true}) 
+            end
+            on check 
+              if my.children.length > 0 
+                add .pt-2 
+                remove .pt-0 
+              else 
+                add .pt-0 
+                remove .pt-2 
+              end"></div>
 
     <div class="flex items-end gap-2 p-2">
         <!-- Attach Button -->

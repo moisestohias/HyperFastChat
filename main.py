@@ -22,13 +22,20 @@ async def read_root(request: Request):
 
 @app.post("/send-message")
 async def send_message(request: Request, form_data: Annotated[MessageForm, Depends()]):
+    import base64
     processed_files = []
     for file in form_data.files:
         if file.size > 0:
+            content = await file.read()
+            url = "#"
+            if file.content_type.startswith("image/"):
+                base64_image = base64.b64encode(content).decode("utf-8")
+                url = f"data:{file.content_type};base64,{base64_image}"
+            
             processed_files.append({
                 "name": file.filename,
                 "type": file.content_type,
-                "url": "#"
+                "url": url
             })
     
     # Render user message

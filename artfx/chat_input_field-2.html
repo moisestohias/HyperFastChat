@@ -1,12 +1,34 @@
-<form id="chatForm" hx-encoding="multipart/form-data" hx-post="/send-message" hx-trigger="submit"
-    hx-target="#new-messages" hx-swap="beforeend" class="relative bg-gray-800 rounded-3xl shadow-lg" _="on htmx:afterRequest 
-      set #messageInput.value to '' 
-      set #messageInput.style.height to 'auto'
-      set #fileInput.value to ''
-      set #filePreview.innerHTML to ''">
+<form id="chatForm"
+      hx-encoding="multipart/form-data"
+      hx-post="/send-message"
+      hx-trigger="submit"
+      hx-target="#new-messages"
+      hx-swap="beforeend"
+      class="relative bg-gray-800 rounded-3xl shadow-lg"
+      _="
+        on change from #fileInput
+          if (document.getElementById('fileInput').files.length > 0)
+            remove .pt-0 from #filePreview
+            add .pt-2 to #filePreview
+          else
+            remove .pt-2 from #filePreview
+            add .pt-0 to #filePreview
+          end
+
+        on htmx:afterRequest
+          set #messageInput.value to ''
+          set #messageInput.style.height to 'auto'
+          set #fileInput.value to ''
+          set #filePreview.innerHTML to ''
+          remove .pt-2 from #filePreview
+          add .pt-0 to #filePreview
+        end">
+
 
     <!-- File Preview Area -->
-    <div id="filePreview" class="px-2 pt-2 flex flex-wrap gap-2"></div>
+    <!-- The hyperscript circus is to only change padding depending on whether the images are attachedd or not -->
+    <!-- Note the JS part is for sending an event to the element itself, to trigger the hyperscript action -->
+    <div id="filePreview" class="px-2 pt-0 flex flex-wrap gap-2"></div>
 
     <div class="flex items-end gap-2 p-2">
         <!-- Attach Button -->

@@ -24,3 +24,19 @@
    - Include message status indicators
 
 This application serves as a solid foundation for a file-sharing chat interface with clean separation of concerns between frontend and backend components.
+
+===
+
+
+## Technical Implementation Notes
+
+### Backend-Specific Details
+- Uses FastAPI's dependency injection for request handling
+- Handles optional file uploads gracefully
+- Uses async/await for non-blocking file operations
+
+### Frontend-Specific Details
+- Client-side file processing with JavaScript FileReader API
+- Real-time DOM manipulation without page refreshes
+- Event-driven interactions using hyperscript
+- Responsive CSS with Tailwind utility classes
