@@ -33,3 +33,19 @@ Please debug this issue, to ensure the interface displays only one scrollbar in 
 
 Currently, there are two scrollbars, which creates confusion and inconsistent behavior. The Input Area should not have independent scrolling but should remain part of the main page flow.
 
+
+---
+
+Is it possible to a button for code blocks that allows for copying the content of the blocks? if so how to?
+
+Can you update the markdown rendering so that we have a copy botton that allows for copying the content of the blocks, 
+block from response to be 
+
+---
+Add the following buttons beneath each message in the chat interface:  
+- For user messages: ✏️ Edit and 📋 Copy  
+- For bot responses: 📋 Copy, ♻️ Regenerate, 👍 Thumbs Up, 👎 Thumbs Down  
+
+Display buttons with emojis only, positioned clearly under each respective message.
+
+---

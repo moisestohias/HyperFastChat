@@ -1,6 +1,6 @@
 window.renderMessage = function (el) {
-    if (!window.marked || !window.renderMathInElement) {
-        console.warn('Markdown or LaTeX renderer not found. Retrying in 50ms...');
+    if (!window.marked || !window.renderMathInElement || !window.hljs) {
+        console.warn('Markdown, LaTeX, or Highlight renderer not found. Retrying in 50ms...');
         setTimeout(() => window.renderMessage(el), 50);
         return;
     }
@@ -20,14 +20,16 @@ window.renderMessage = function (el) {
         throwOnError: false
     });
 
-    // 3. Add Copy Buttons to Code Blocks
+    // 3. Add Copy Buttons and Syntax Highlighting to Code Blocks
     const codeBlocks = el.querySelectorAll('pre');
     codeBlocks.forEach(pre => {
-        // Avoid duplicate containers if re-rendered
-        if (pre.parentElement.classList.contains('code-block-container')) return;
-
         const code = pre.querySelector('code');
         if (code) {
+            // Apply Highlight.js
+            hljs.highlightElement(code);
+
+            // Avoid duplicate containers if re-rendered
+            if (pre.parentElement.classList.contains('code-block-container')) return;
             const container = document.createElement('div');
             container.className = 'code-block-container';
 
