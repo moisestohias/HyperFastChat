@@ -1,5 +1,6 @@
-<form id="chatForm" hx-encoding="multipart/form-data" hx-post="/send-message" hx-trigger="submit"
-    hx-target="#new-messages" hx-swap="beforeend" class="relative bg-gray-800 rounded-3xl shadow-lg" _="on htmx:afterRequest 
+<form id="chatForm" hx-encoding="multipart/form-data" hx-post="/chat/{{ conversation_id }}/send-message"
+    hx-trigger="submit" hx-target="#new-messages" hx-swap="beforeend" class="relative bg-gray-800 rounded-3xl shadow-lg"
+    _="on htmx:afterRequest 
       set #messageInput.value to '' 
       set #messageInput.style.height to 'auto'
       set #fileInput.value to ''

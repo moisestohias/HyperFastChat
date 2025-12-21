@@ -1,5 +1,6 @@
+import uuid
 from fastapi import FastAPI, Request, UploadFile, File, Form, Depends
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from typing import Annotated
 
@@ -9,6 +10,9 @@ templates = Jinja2Templates(directory="templates")
 app = FastAPI()
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
+
+# In-memory storage for conversations
+chats = {}
 
 # A class to acts like a Pydantic model but works with Forms
 class MessageForm:
@@ -22,10 +26,41 @@ class MessageForm:
 
 @app.get("/", response_class=HTMLResponse)
 async def read_root(request: Request):
-    return templates.TemplateResponse("index.html", {"request": request})
+    return RedirectResponse(url=f"/chat/{uuid.uuid4()}", status_code=303)
 
-@app.post("/send-message")
-async def send_message(request: Request, form_data: Annotated[MessageForm, Depends()]):
+@app.get("/chat/{conv_id}", response_class=HTMLResponse)
+async def get_chat(request: Request, conv_id: str):
+    # Initialize conversation if it doesn't exist
+    if conv_id not in chats:
+        chats[conv_id] = {
+            "model": "model-name",
+            "model_attributes": {
+                "temperature": 0.9,
+                "top_p": 0.95,
+                "max_tokens": 150
+            },
+            "messages": [
+                {
+                    "role": "system",
+                    "content": "You are a helpful assistant."
+                }
+            ]
+        }
+    
+    # Get messages for rendering (skipping system message for UI)
+    ui_messages = [msg for msg in chats[conv_id]["messages"] if msg["role"] != "system"]
+    
+    return templates.TemplateResponse("index.html", {
+        "request": request, 
+        "conversation_id": conv_id,
+        "history": ui_messages
+    })
+
+@app.post("/chat/{conv_id}/send-message")
+async def send_message(request: Request, conv_id: str, form_data: Annotated[MessageForm, Depends()]):
+    if conv_id not in chats:
+        return HTMLResponse(content="Conversation not found", status_code=404)
+
     import base64
     processed_files = []
     for file in form_data.files:
@@ -42,6 +77,12 @@ async def send_message(request: Request, form_data: Annotated[MessageForm, Depen
                 "url": url
             })
     
+    # Update conversation history with user message
+    chats[conv_id]["messages"].append({
+        "role": "user",
+        "content": form_data.message
+    })
+
     # Render user message
     user_html = templates.get_template("chat_response.html").render({
         "request": request,
@@ -50,12 +91,20 @@ async def send_message(request: Request, form_data: Annotated[MessageForm, Depen
         "files": processed_files
     })
     
+    # Mock bot response logic
+    bot_message = form_data.message
+    
+    # Update conversation history with assistant message
+    chats[conv_id]["messages"].append({
+        "role": "assistant",
+        "content": bot_message
+    })
+
     # Render bot echo response
     bot_html = templates.get_template("chat_response.html").render({
         "request": request,
         "sender": "bot",
-        "message": form_data.message,
-        "files": processed_files,
+        "message": bot_message,
         "timestamp": "Bot Response"
     })
     

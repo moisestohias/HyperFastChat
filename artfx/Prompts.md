@@ -49,3 +49,55 @@ Add the following buttons beneath each message in the chat interface:
 Display buttons with emojis only, positioned clearly under each respective message.
 
 ---
+
+Great work, Can we add the ability for the user to edit message when the edit button is clicked for the user message? Specifically, the user should be able to edit the message in place without copying back the message to the input field. Does this requires adding ID for each message? JUST THE QUESTION DO NOT MAKE ANY CHANGE
+
+---
+
+What would need to change in order to implement proper ID based approach? Just answer the question, do not implement the changes yet.
+
+[[Per-message-ID]]
+
+Actually no, we shold instead, as soon as we start the conversation, the backend should create a random unique ID for the conversation using UUID. Then insert that UUID in the URL, so the backend knows exactly what conversation we are in.
+
+Let's just statart by storing conversatinos in a dict in the backend. 
+So, as soon as we start the conversation, the backend should create a random unique ID for the conversation using UUID. Then push UUID in the URL, so the backend knows exactly what conversation we are in.
+The end point should be `/chat/conv_UUID`
+Here is the structure of the chats
+```
+chats = {
+  "conv_uuid" : {
+    "model": "model-name",
+    "model_attributes": {
+      "temperature": 0.9,
+      "top_p": 0.95,
+      "max_tokens": 150
+    },
+    "messages": [
+      {
+        "role": "system",
+        "content": "You are a helpful assistant."
+      },
+      {
+        "role": "user",
+        "content": "How many gifts will Santa Claus deliver on Christmas?"
+      },
+      {
+        "role": "assistant",
+        "content": "That depends on how many people are on the nice list this year."
+      },
+      {
+        "role": "user",
+        "content": "I've been good, haven't I?"
+      },
+      {
+        "role": "assistant",
+        "content": "Of course—you've been very good!"
+      }
+    ]
+  },
+  ...
+}
+```
+
+Do not make UI changes use, just implement the feature request here

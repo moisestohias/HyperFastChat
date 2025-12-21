@@ -74,3 +74,16 @@ window.renderMessage = function (el) {
     el.classList.remove('whitespace-pre-wrap');
     el.classList.add('markdown-content');
 };
+
+window.copyMessage = function (btn, text) {
+    navigator.clipboard.writeText(text).then(() => {
+        const original = btn.innerText;
+        btn.innerText = '✅';
+        setTimeout(() => {
+            btn.innerText = original;
+        }, 1000);
+    }).catch(err => {
+        console.error('Failed to copy message: ', err);
+    });
+};
+

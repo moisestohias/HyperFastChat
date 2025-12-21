@@ -28,11 +28,11 @@
     <div class="message-actions {% if sender == 'user' %}flex-row-reverse{% endif %}">
         {% if sender == 'user' %}
         <button class="action-btn" title="Edit">✏️</button>
-        <button class="action-btn" title="Copy"
-            _="on click call navigator.clipboard.writeText('{{ message|e }}') then set my.innerText to '✅' wait 1s then set my.innerText to '📋'">📋</button>
+        <button class="action-btn" title="Copy" data-message="{{ message }}"
+            _="on click copyMessage(me, my.getAttribute('data-message'))">📋</button>
         {% else %}
-        <button class="action-btn" title="Copy"
-            _="on click call navigator.clipboard.writeText('{{ message|e }}') then set my.innerText to '✅' wait 1s then set my.innerText to '📋'">📋</button>
+        <button class="action-btn" title="Copy" data-message="{{ message }}"
+            _="on click copyMessage(me, my.getAttribute('data-message'))">📋</button>
         <button class="action-btn" title="Regenerate">♻️</button>
         <button class="action-btn" title="Thumbs Up" _="on click toggle .text-green-500">👍</button>
         <button class="action-btn" title="Thumbs Down" _="on click toggle .text-red-500">👎</button>

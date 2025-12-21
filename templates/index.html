@@ -3,8 +3,16 @@
 {% block title %}Chat Application{% endblock %}
 
 {% block chat_history %}
-<!-- Initial welcome message or example of chat_response usage -->
+{% if history %}
+{% for msg in history %}
+{% with sender='user' if msg.role == 'user' else 'bot', message=msg.content %}
+{% include "chat_response.html" %}
+{% endwith %}
+{% endfor %}
+{% else %}
+<!-- Initial welcome message -->
 {% with sender='bot', message='Welcome! How can I help you today?', timestamp='System' %}
 {% include "chat_response.html" %}
 {% endwith %}
+{% endif %}
 {% endblock %}
