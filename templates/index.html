@@ -1,107 +1,13 @@
-<!DOCTYPE html>
-<html lang="en">
+{% extends "chat.html" %}
 
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Chat UI</title>
-  <script src="https://unpkg.com/htmx.org@1.9.10"></script>
-  <script src="https://unpkg.com/hyperscript.org@0.9.12"></script>
-  <script src="https://cdn.tailwindcss.com"></script>
-</head>
+{% block title %}Chat Application{% endblock %}
 
-<body class="bg-gray-900 min-h-screen flex flex-col">
+{% block chat_history %}
+<!-- Initial welcome message or example of chat_response usage -->
+{% with sender='bot', message='Welcome! How can I help you today?', timestamp='System' %}
+{% include "chat_response.html" %}
+{% endwith %}
 
-  <div class="flex-1"></div>
-
-  <div class="p-4 pb-6">
-    <div class="max-w-4xl mx-auto">
-      <form id="chatForm" hx-encoding="multipart/form-data" hx-post="/send-message" hx-trigger="submit" hx-swap="none"
-        class="relative bg-gray-800 rounded-3xl shadow-lg" _="on htmx:afterRequest 
-            set #messageInput.value to '' 
-            set #messageInput.style.height to 'auto'
-            set #fileInput.value to ''
-            set #filePreview.innerHTML to ''">
-
-        <!-- File Preview Area -->
-        <div id="filePreview" class="px-3 pt-2 flex flex-wrap gap-2"></div>
-
-        <div class="flex items-end gap-2 p-3">
-          <!-- Attach Button -->
-          <button type="button"
-            class="flex-shrink-0 w-10 h-10 rounded-full bg-gray-700 hover:bg-gray-600 text-white flex items-center justify-center transition-colors"
-            onclick="document.getElementById('fileInput').click()">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-            </svg>
-          </button>
-
-          <!-- Auto-expanding Textarea -->
-          <textarea id="messageInput" name="message" placeholder="Ask anything..." rows="1"
-            class="flex-1 bg-transparent text-white placeholder-gray-500 resize-none outline-none py-2.5 px-2 max-h-48 overflow-y-auto"
-            style="height: auto;" _="on input 
-               set my.style.height to 'auto' 
-               set my.style.height to my.scrollHeight + 'px'
-               on keydown if event.key is 'Enter' and not event.shiftKey
-                 halt the event
-                 trigger submit on #chatForm
-               end"></textarea>
-
-          <!-- Send Button -->
-          <button type="submit"
-            class="flex-shrink-0 w-10 h-10 rounded-full bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center transition-colors">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 10l7-7m0 0l7 7m-7-7v18" />
-            </svg>
-          </button>
-        </div>
-
-        <!-- Hidden file input -->
-        <input type="file" id="fileInput" name="files" accept="image/*,.pdf" class="hidden" multiple>
-
-        <script>
-          document.getElementById('fileInput').addEventListener('change', function (e) {
-            let files = Array.from(e.target.files);
-            const preview = document.getElementById('filePreview');
-            preview.innerHTML = '';
-
-            files.forEach((file) => {
-              if (file.type.startsWith('image/')) {
-                const reader = new FileReader();
-                reader.onload = function (event) {
-                  const container = document.createElement('div');
-                  container.className = "relative inline-block";
-                  container.innerHTML = `
-                    <img src="${event.target.result}" class="max-h-32 rounded-lg" alt="Preview">
-                    <button type="button"
-                            class="absolute top-1 right-1 bg-gray-900 bg-opacity-70 hover:bg-opacity-90 text-white rounded-full w-6 h-6 flex items-center justify-center"> ✕ </button> `;
-
-                  // Remove specific file by identity, not index
-                  container.querySelector("button").onclick = () => {
-                    files = files.filter(f => f !== file);   // remove that file
-                    const dt = new DataTransfer();
-                    files.forEach(f => dt.items.add(f));
-                    document.getElementById('fileInput').files = dt.files;
-                    container.remove();
-                  };
-
-                  preview.appendChild(container);
-                };
-                reader.readAsDataURL(file);
-              } else {
-                const div = document.createElement('div');
-                div.className = "text-gray-300 bg-gray-700 px-2 py-1 rounded-lg flex items-center gap-2";
-                div.textContent = file.name;
-                preview.appendChild(div);
-              }
-            });
-          });
-
-        </script>
-      </form>
-    </div>
-  </div>
-
-</body>
-
-</html>
+<!-- This is where new messages will be appended if using HTMX to update -->
+<div id="new-messages"></div>
+{% endblock %}
