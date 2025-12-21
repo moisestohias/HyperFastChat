@@ -2,20 +2,7 @@
     <div
         class="max-w-[80%] {% if sender == 'user' %}bg-blue-600 text-white rounded-t-2xl rounded-bl-2xl{% else %}bg-gray-800 text-gray-100 rounded-t-2xl rounded-br-2xl{% endif %} p-2 shadow-md">
         {% if message %}
-        <p class="text-sm leading-relaxed whitespace-pre-wrap" _="on load 
-              if window.marked and window.renderMathInElement
-                set content to my.innerText
-                set my.innerHTML to marked.parse(content)
-                call renderMathInElement(my, {
-                  delimiters: [
-                    {left: '$$', right: '$$', display: true},
-                    {left: '$', right: '$', display: false}
-                  ],
-                  throwOnError: false
-                })
-                remove .whitespace-pre-wrap from me
-                add .markdown-content to me
-              end">{{ message }}</p>
+        <p class="text-sm leading-relaxed whitespace-pre-wrap" _="on load renderMessage(me)">{{ message }}</p>
         {% endif %}
 
         {% if files %}
