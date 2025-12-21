@@ -3,8 +3,12 @@ from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from typing import Annotated
 
+from fastapi.staticfiles import StaticFiles
+
 templates = Jinja2Templates(directory="templates")
 app = FastAPI()
+
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # A class to acts like a Pydantic model but works with Forms
 class MessageForm:
@@ -50,7 +54,7 @@ async def send_message(request: Request, form_data: Annotated[MessageForm, Depen
     bot_html = templates.get_template("chat_response.html").render({
         "request": request,
         "sender": "bot",
-        "message": f"Echo: {form_data.message}",
+        "message": form_data.message,
         "files": processed_files,
         "timestamp": "Bot Response"
     })

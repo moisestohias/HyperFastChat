@@ -1,89 +1,51 @@
-# Comprehensive Context Document: File Upload Chat Application
+# Comprehensive Context Document: Enhanced Chat Application
 
 ## Project Overview
+This is a lightweight yet feature-rich chat application built with **FastAPI**, **HTMX**, and **Hyperscript**. It supports multi-file uploads, real-time Markdown rendering, and LaTeX mathematical equations. The application uses a modular template structure and externalized styling to ensure maintainability and performance.
 
-This is a lightweight file upload chat application built with FastAPI that allows users to send messages combined with file attachments. The application features a modern chat-like interface with real-time file preview capabilities and uses HTMX for seamless client-server interactions without traditional page reloads.
+## Core Purpose
+The application provides a modern, dark-themed chat interface where users can:
+- Send text messages with **Markdown** formatting (code blocks, lists, bold/italics).
+- Write and render **LaTeX equations** (using `$` for inline and `$$` for block-level expressions).
+- Upload and preview **multiple files** (images, PDFs) simultaneously.
+- experience a seamless, "no-refresh" UI powered by HTMX partial updates.
 
-## Purpose and Functionality
-
-The application serves as a simple chat UI that enables users to:
-- Type and send text messages
-- Upload various file types (images, PDFs, etc.)
-- View live previews of selected files before sending
-- Process both message content and file uploads on the backend
+## Current Focus & Recent Work
+Recent development has focused on enhancing the richness of message content and UI stability:
+1. **Markdown & LaTeX Integration**: Implemented self-contained rendering logic in chat partials using `marked.js` and `KaTeX`.
+2. **Scrollbar & Layout Optimization**: Resolved "double scrollbar" issues by locking the viewport (`100vh`) and implementing specialized horizontal overflow handling for wide equations and code blocks.
+3. **Architectural Refactoring**: 
+   - Moved from a monolithic `index.html` to a modular system of partials (`base.html`, `chat.html`, `chat_response.html`, `chat_input_field.html`).
+   - Externalized styles into `static/style.css` and configured FastAPI static file mounting.
+   - Refactored message rendering to use individual Hyperscript `on load` triggers for robust asynchronous rendering.
 
 ## File Structure
-
 ```
 clean/
-├── main.py          # Backend FastAPI application
+├── main.py              # FastAPI app, static mounting, & message handlers
+├── static/
+│   └── style.css        # Global styles (Scrollbars, Markdown, LaTeX blocks)
 └── templates/
-    └── index.html   # Frontend chat interface
+    ├── base.html        # Main layout, CDN imports (KaTeX, Marked, HTMX)
+    ├── chat.html        # Main chat page container
+    ├── index.html       # Landing page (inherits chat)
+    ├── chat_response.html # Individual message partial (handles own rendering)
+    └── chat_input_field.html # Input form, multi-file logic, & preview
 ```
 
-The project follows a simple two-tier structure with a clear separation between backend logic (Python/FastAPI) and frontend presentation (HTML/CSS/JS).
+## Technology Stack
+- **Backend**: FastAPI (Python)
+- **Templating**: Jinja2
+- **UI Framework**: Tailwind CSS (Tailwind CDN)
+- **Interactivity**: HTMX (AJAX updates) & Hyperscript (Client-side logic)
+- **Rendering**: Marked.js (Markdown) & KaTeX (LaTeX)
 
-## Backend Architecture (main.py)
+## Important Development Rules (LLM Guidelines)
+1. **Viewport Integrity**: Never allow `body` or `html` to scroll. Use `overflow: hidden` and `height: 100vh`. All scrolling should be internal.
+2. **Horizontal Overflow**: Always wrap wide tags (`pre`, `code`, `.katex-display`) in `overflow-x: auto` to prevent them from breaking the message bubble width.
+3. **Modular CSS**: Add new global styles to `static/style.css` rather than using inline `<style>` blocks in templates.
+4. **Self-Rendering Partials**: When creating or modifying message partials, ensure they trigger their own rendering logic (Markdown/LaTeX) `on load` to support HTMX swaps.
 
-### Key Components
-- **UploadFile/File**: FastAPI's file upload utilities
-- **Form**: For handling form data
+---
 
-### Endpoints
-- **Message Endpoint (`/send-message`)**
-   - Accepts POST requests with multipart form data
-   - Extracts both text message and file attachment
-   - Processes and logs message content and file metadata
-   - Returns empty HTML response to clear the form
-
-### File Processing Logic
-- Handles optional file uploads (can process requests with or without files)
-- Reads file content into memory for processing
-- Logs detailed information about received files (filename, size)
-
-## Frontend Architecture (index.html)
-
-### Technology Stack
-- Backend: FastAPI & Jinja2Templates
-- TailwindCSS
-- **HTMX**
-- **Hyperscript**: JavaScript-like scripting language for DOM manipulation
-
-
-### Core Features
-
-1. **Auto-expanding Textarea**
-   - Dynamically adjusts height based on content
-   - Implements Enter key submission (Shift+Enter for new line)
-   - Clean, minimalist design with transparent background
-
-2. **File Upload System**
-   - Drag-and-drop inspired file selection
-   - Real-time preview for image files
-   - Visual representation for non-image files
-   - Ability to remove selected files before submission
-
-3. **Dynamic Form Handling**
-   - Uses HTMX for asynchronous form submission
-   - Automatically clears form fields after successful submission
-   - Maintains clean user experience without page refreshes
-
-4. **Responsive Design**
-   - Dark-themed interface optimized for chat applications
-   - Mobile-responsive layout
-   - Accessible color scheme and contrast ratios
-
-## Key API Endpoints
-
-### POST /send-message
-- **Purpose**: Handles form submissions containing messages and files
-- **Content-Type**: `multipart/form-data`
-- **Parameters**:
-  - `message` (Form field): Text content of the user's message
-  - `file` (File upload): Optional file attachment
-- **Response**: Empty HTML content with status 200
-- **Functionality**: Logs message and file information to console
-
-## Deployment and Usage Notes
-
-DO NOT run the server, the user is running the server, he will provide feedback.
+*Note: The server is managed by the user. Do not attempt to start or restart the server.*

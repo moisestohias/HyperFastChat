@@ -1,0 +1,49 @@
+/* Global Reset */
+html, body {
+    overflow: hidden;
+    height: 100vh;
+    margin: 0;
+    padding: 0;
+}
+
+/* Custom Scrollbar Utility */
+.custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+.custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+.custom-scrollbar::-webkit-scrollbar-thumb { background: #374151; border-radius: 10px; }
+.custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #4b5563; }
+
+/* Markdown Styles */
+.markdown-content {
+    overflow-wrap: break-word;
+    word-wrap: break-word;
+    word-break: break-word;
+}
+.markdown-content p { margin-bottom: 0.75rem; }
+.markdown-content p:last-child { margin-bottom: 0; }
+.markdown-content ul { list-style-type: disc; padding-left: 1.25rem; margin-bottom: 0.75rem; }
+.markdown-content ol { list-style-type: decimal; padding-left: 1.25rem; margin-bottom: 0.75rem; }
+.markdown-content strong { font-weight: bold; }
+.markdown-content em { font-style: italic; }
+.markdown-content code { background-color: rgba(0,0,0,0.3); padding: 0.1rem 0.3rem; border-radius: 0.25rem; font-family: monospace; }
+
+/* Code Block & LaTeX Display Overflow Handling */
+.markdown-content pre, .katex-display {
+    background-color: rgba(0,0,0,0.3);
+    padding: 0.75rem;
+    border-radius: 0.5rem;
+    overflow-x: auto;
+    overflow-y: hidden;
+    margin-bottom: 0.75rem;
+    scrollbar-width: thin;
+    scrollbar-color: #374151 transparent;
+}
+.markdown-content pre::-webkit-scrollbar, .katex-display::-webkit-scrollbar { width: 4px; height: 4px; }
+.markdown-content pre::-webkit-scrollbar-thumb, .katex-display::-webkit-scrollbar-thumb { background: #374151; border-radius: 10px; }
+
+.markdown-content pre code { background-color: transparent; padding: 0; }
+.markdown-content h1, .markdown-content h2, .markdown-content h3 { font-weight: bold; margin-bottom: 0.5rem; }
+
+/* Ensure KaTeX doesn't push width */
+.katex-display > .katex {
+    white-space: normal;
+}

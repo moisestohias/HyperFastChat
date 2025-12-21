@@ -16,3 +16,20 @@ Fix these
 ---
 
 Update chat.html to place the chat input field "Input Area" in a fixed position at the bottom of the viewport so it is always visible, even when the chat history becomes long and scrolls. The message list should scroll independently, but the input bar should never scroll out of view.
+
+---
+
+Great, it's working properly now, however, I noticed there are two scroll bars, where the second scroll bar allow me to scroll everything including the Input Area, which should be the case. 
+
+---
+
+Updat @chat.html to support Markdown rendering with latext equations support $ for inline and $$ for standalone, use CDN 
+
+Update @chat.html to render Markdown with support for LaTeX equations using $ for inline and $$ for block-level expressions, leveraging a CDN for required libraries.
+
+---
+Great, it's working properly now. However, I've noticed a wierd behavior, the UI works fine for almost everything, however, when I past a long text CONTAINING LATEX EQAUTIONS (THEREFORE IT REQUIRES SCROLLING), another scrolling bar appear.
+Please debug this issue, to ensure the interface displays only one scrollbar in all cases 
+
+Currently, there are two scrollbars, which creates confusion and inconsistent behavior. The Input Area should not have independent scrolling but should remain part of the main page flow.
+
