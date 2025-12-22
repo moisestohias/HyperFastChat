@@ -153,10 +153,16 @@ async def generate_bot_response_stream(conv_id: str):
     })
     
     # Yield final 'done' event with action buttons HTML (single line for SSE)
-    escaped_message = html_module.escape(accumulated).replace('\n', '&#10;').replace('"', '&quot;')
-    done_html = f'<div class="message-actions opacity-100 pointer-events-auto"><button class="action-btn" title="Copy" data-message="{escaped_message}" _="on click copyMessage(me, my.getAttribute(\'data-message\'))">📋</button><button class="action-btn" title="Regenerate">♻️</button><button class="action-btn" title="Thumbs Up" _="on click toggle .text-green-500">👍</button><button class="action-btn" title="Thumbs Down" _="on click toggle .text-red-500">👎</button></div>'
+    # Includes standard Copy, Regenerate, Thumbs Up, Thumbs Down buttons
+    # heavily escape the message for the data-attribute
+    escaped_message = html_module.escape(accumulated).replace('\n', '&#10;').replace('\r', '').replace('"', '&quot;')
     
-    yield f"event: done\ndata: {done_html}\n\n"
+    done_html = f'<div class="message-actions flex gap-2 opacity-100 pointer-events-auto"><button class="action-btn" title="Copy" data-message="{escaped_message}" _="on click copyMessage(me, my.getAttribute(\'data-message\'))">📋</button><button class="action-btn" title="Regenerate">♻️</button><button class="action-btn" title="Thumbs Up" _="on click toggle .text-green-500">👍</button><button class="action-btn" title="Thumbs Down" _="on click toggle .text-red-500">👎</button></div>'
+    
+    # JSON encode the HTML to ensure transport safety over SSE
+    safe_done_data = json.dumps(done_html)
+    
+    yield f"event: done\ndata: {safe_done_data}\n\n"
 
 
 @app.get("/chat/{conv_id}/bot-stream")

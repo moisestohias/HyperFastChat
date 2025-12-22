@@ -12,7 +12,14 @@ window.renderMessage = function (el) {
     });
 
     // Capture the raw text before any processing
-    const rawContent = el.innerText;
+    // We use textContent to avoid browser CSS whitespace collapsing (innerText would return collapsed text)
+    const rawContent = el.textContent;
+
+    // Configure marked to treat single newlines as <br> tags
+    marked.setOptions({
+        breaks: true,
+        gfm: true
+    });
 
     // 1. Render Markdown
     el.innerHTML = marked.parse(rawContent);

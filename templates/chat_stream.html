@@ -79,7 +79,13 @@
             }
 
             // Show action buttons from server response
-            actionsEl.innerHTML = evt.data;
+            // Parse the JSON-encoded HTML string
+            try {
+                actionsEl.innerHTML = JSON.parse(evt.data);
+            } catch (e) {
+                console.error('Failed to parse done event data:', e);
+                actionsEl.innerHTML = evt.data; // Fallback
+            }
             actionsEl.classList.remove('hidden');
 
             // Process hyperscript on new action buttons
