@@ -5,11 +5,16 @@
 {% block chat_history %}
 {% if history %}
 {% for msg in history %}
-{% with sender='user' if msg.role == 'user' else 'bot', message=msg.content %}
+{% if loop.last and msg.role == 'assistant' and msg.get('status') == 'streaming' %}
+{# If the last message was interrupted during streaming, auto-resume #}
+{% with message=msg.content %}
+{% include "chat_stream.html" %}
+{% endwith %}
+{% else %}
+{% with sender='user' if msg.role == 'user' else 'bot', message=msg.content, files=msg.get('files', []) %}
 {% include "chat_response.html" %}
 {% endwith %}
+{% endif %}
 {% endfor %}
-
-
 {% endif %}
 {% endblock %}

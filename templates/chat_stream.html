@@ -5,7 +5,7 @@
     <div class="max-w-[80%] bg-gray-800 text-gray-100 rounded-t-2xl rounded-br-2xl p-2 shadow-md">
         <!-- Streaming content target -->
         <div id="stream-content-{{ stream_id }}" class="text-sm leading-relaxed markdown-content">
-            <span class="text-gray-400 animate-pulse">▋</span>
+            {{ message if message else '' }}<span class="stream-cursor animate-pulse text-blue-400">▋</span>
         </div>
     </div>
 
@@ -22,88 +22,78 @@
 
         if (!contentEl) return;
 
-        // Create EventSource connection for SSE streaming
-        const eventSource = new EventSource('/chat/' + convId + '/bot-stream');
+        // Track accumulated raw content - initialized from server-side state
+        let rawAccumulated = {{ (message if message else '') | tojson
+    }};
 
-        // Track accumulated raw content
-        let rawAccumulated = '';
+    // Create EventSource connection for SSE streaming
+    const eventSource = new EventSource('/chat/' + convId + '/bot-stream');
 
-        // Handle token events - each event contains the full accumulated text so far
-        eventSource.addEventListener('token', function (evt) {
-            try {
-                // Data is JSON-encoded string - parse it to restore newlines etc.
-                rawAccumulated = JSON.parse(evt.data);
-            } catch (e) {
-                rawAccumulated = evt.data;
-            }
+    // Helper to update UI with rendered content and maintain cursor
+    const updateUI = (text) => {
+        contentEl.textContent = text;
+        if (window.renderMessageStreaming) {
+            window.renderMessageStreaming(contentEl);
+        }
 
-            // Store raw text in the element
-            contentEl.textContent = rawAccumulated;
+        const cursor = document.createElement('span');
+        cursor.className = 'stream-cursor animate-pulse text-blue-400';
+        // cursor.textContent = '▋';
+        contentEl.appendChild(cursor);
 
-            // Apply streaming render (safe HTML with line breaks)
-            if (window.renderMessageStreaming) {
-                window.renderMessageStreaming(contentEl);
-            }
+        const chatMessages = document.getElementById('chat-messages');
+        if (chatMessages) {
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+    };
 
-            // Add blinking cursor at the end
-            const existingCursor = contentEl.querySelector('.stream-cursor');
-            if (existingCursor) existingCursor.remove();
+    // Initial render if resuming
+    if (rawAccumulated) {
+        updateUI(rawAccumulated);
+    }
 
-            const cursor = document.createElement('span');
-            cursor.className = 'stream-cursor animate-pulse text-blue-400';
-            cursor.textContent = '▋';
-            contentEl.appendChild(cursor);
+    // Handle token events - each event contains the full accumulated text so far
+    eventSource.addEventListener('token', function (evt) {
+        try {
+            rawAccumulated = JSON.parse(evt.data);
+        } catch (e) {
+            rawAccumulated = evt.data;
+        }
+        updateUI(rawAccumulated);
+    });
 
-            // Auto-scroll to bottom
-            const chatMessages = document.getElementById('chat-messages');
-            if (chatMessages) {
-                chatMessages.scrollTop = chatMessages.scrollHeight;
-            }
-        });
+    // Handle done event - streaming complete
+    eventSource.addEventListener('done', function (evt) {
+        eventSource.close();
 
-        // Handle done event - streaming complete
-        eventSource.addEventListener('done', function (evt) {
-            // Close the SSE connection
-            eventSource.close();
+        // Final full render with all features
+        contentEl.textContent = rawAccumulated;
+        if (window.renderMessage) {
+            window.renderMessage(contentEl);
+        }
 
-            // Remove cursor
-            const cursor = contentEl.querySelector('.stream-cursor');
-            if (cursor) cursor.remove();
+        // Show action buttons
+        try {
+            actionsEl.innerHTML = JSON.parse(evt.data);
+        } catch (e) {
+            actionsEl.innerHTML = evt.data;
+        }
+        actionsEl.classList.remove('hidden');
 
-            // Final full render with Markdown, LaTeX, syntax highlighting, and copy buttons
-            if (rawAccumulated) {
-                contentEl.textContent = rawAccumulated;
-                if (window.renderMessage) {
-                    window.renderMessage(contentEl);
-                }
-            }
+        if (window._hyperscript) {
+            window._hyperscript.processNode(actionsEl);
+        }
 
-            // Show action buttons from server response
-            // Parse the JSON-encoded HTML string
-            try {
-                actionsEl.innerHTML = JSON.parse(evt.data);
-            } catch (e) {
-                console.error('Failed to parse done event data:', e);
-                actionsEl.innerHTML = evt.data; // Fallback
-            }
-            actionsEl.classList.remove('hidden');
+        const chatMessages = document.getElementById('chat-messages');
+        if (chatMessages) {
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+    });
 
-            // Process hyperscript on new action buttons
-            if (window._hyperscript) {
-                window._hyperscript.processNode(actionsEl);
-            }
-
-            // Final scroll
-            const chatMessages = document.getElementById('chat-messages');
-            if (chatMessages) {
-                chatMessages.scrollTop = chatMessages.scrollHeight;
-            }
-        });
-
-        // Handle errors
-        eventSource.addEventListener('error', function (evt) {
-            eventSource.close();
-            contentEl.innerHTML = '<span class="text-red-400">Error loading response. Please try again.</span>';
-        });
-    })();
+    // Handle errors
+    eventSource.addEventListener('error', function (evt) {
+        eventSource.close();
+        console.error('SSE Error:', evt);
+    });
+    }) ();
 </script>

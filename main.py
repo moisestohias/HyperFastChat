@@ -7,6 +7,8 @@ from fastapi.templating import Jinja2Templates
 from typing import Annotated
 
 from fastapi.staticfiles import StaticFiles
+import html as html_module
+import json
 
 templates = Jinja2Templates(directory="templates")
 app = FastAPI()
@@ -55,7 +57,8 @@ async def get_chat(request: Request, conv_id: str):
     return templates.TemplateResponse("index.html", {
         "request": request, 
         "conversation_id": conv_id,
-        "history": ui_messages
+        "history": ui_messages,
+        "stream_id": str(uuid.uuid4())[:8]
     })
 
 @app.post("/chat/{conv_id}/send-message")
@@ -79,10 +82,18 @@ async def send_message(request: Request, conv_id: str, form_data: Annotated[Mess
                 "url": url
             })
     
-    # Update conversation history with user message
+    # Update conversation history with user message and files
     chats[conv_id]["messages"].append({
         "role": "user",
-        "content": form_data.message
+        "content": form_data.message,
+        "files": processed_files
+    })
+
+    # Add a placeholder assistant message that will be updated during streaming
+    chats[conv_id]["messages"].append({
+        "role": "assistant",
+        "content": "",
+        "status": "streaming"
     })
 
     # Render user message
@@ -103,66 +114,87 @@ async def send_message(request: Request, conv_id: str, form_data: Annotated[Mess
         "stream_id": stream_id
     })
     
+    # Start the generation in the background so it's not tied to this request or the next SSE request
+    asyncio.create_task(run_chatbot_logic(conv_id))
+    
     return HTMLResponse(content=user_html + bot_trigger_html)
 
-async def generate_bot_response_stream(conv_id: str):
+async def run_chatbot_logic(conv_id: str):
     """
-    Async generator that yields SSE events with accumulated tokens.
-    Each event contains the full message so far, enabling live rendering.
+    Background task that simulates LLM generation independently of the UI state.
+    Updates the conversation history in real-time.
     """
-    import html as html_module
-    import json
-    
     if conv_id not in chats:
-        yield f"event: error\ndata: Conversation not found\n\n"
         return
     
-    # Find the last message from user to echo it (simulating bot response)
     messages = chats[conv_id]["messages"]
+    assistant_msg = next((m for m in reversed(messages) if m["role"] == "assistant"), None)
     user_message = next((m["content"] for m in reversed(messages) if m["role"] == "user"), "Hello!")
     
-    # Simulate token-by-token generation
-    # In real implementation, this would be replaced with LLM streaming
+    # Simulate generation
     full_response = user_message
     accumulated = ""
-    
-    # Simulate some "thinking" delay
-    await asyncio.sleep(0.3)
-    
-    # Split response into tokens (words for simulation)
     tokens = full_response.split(" ")
     
-    for i, token in enumerate(tokens):
-        # Add space between tokens (except for first token)
+    # Simulate thinking
+    await asyncio.sleep(0.3)
+    
+    for token in tokens:
         if accumulated:
             accumulated += " "
         accumulated += token
         
-        # SSE data must be single line - encode newlines
-        # Use JSON encoding to safely handle all special characters
-        safe_data = json.dumps(accumulated)
-        yield f"event: token\ndata: {safe_data}\n\n"
-        
-        # Simulate token generation delay
+        # Update shared state
+        if assistant_msg:
+            assistant_msg["content"] = accumulated
+            
+        # Simulate token delay
         await asyncio.sleep(0.05)
     
-    # Update conversation history with complete message
-    chats[conv_id]["messages"].append({
-        "role": "assistant",
-        "content": accumulated
-    })
+    # Mark as complete when finished
+    if assistant_msg:
+        assistant_msg["status"] = "complete"
+
+async def generate_bot_response_stream(conv_id: str):
+    """
+    SSE stream generator that reflects the current backend state.
+    It watches the conversation history and yields updates as they occur.
+    """
+    if conv_id not in chats:
+        yield f"event: error\ndata: Conversation not found\n\n"
+        return
     
-    # Yield final 'done' event with action buttons HTML (single line for SSE)
-    # Includes standard Copy, Regenerate, Thumbs Up, Thumbs Down buttons
-    # heavily escape the message for the data-attribute
-    escaped_message = html_module.escape(accumulated).replace('\n', '&#10;').replace('\r', '').replace('"', '&quot;')
+    # Find the target assistant message in the shared state
+    messages = chats[conv_id]["messages"]
+    assistant_msg = next((m for m in reversed(messages) if m["role"] == "assistant"), None)
     
+    if not assistant_msg:
+        yield f"event: error\ndata: Message not found\n\n"
+        return
+
+    last_sent_content = None
+    
+    # Loop while the backend is still generating
+    while assistant_msg.get("status") == "streaming":
+        current_content = assistant_msg["content"]
+        
+        # Only send an update if the content has changed
+        if current_content != last_sent_content:
+            safe_data = json.dumps(current_content)
+            yield f"event: token\ndata: {safe_data}\n\n"
+            last_sent_content = current_content
+            
+        await asyncio.sleep(0.05) # Poll the shared state
+    
+    # Final token update to ensure full content is delivered
+    final_content = assistant_msg["content"]
+    yield f"event: token\ndata: {json.dumps(final_content)}\n\n"
+    
+    # Send the 'done' event with action buttons
+    escaped_message = html_module.escape(final_content).replace('\n', '&#10;').replace('\r', '').replace('"', '&quot;')
     done_html = f'<div class="message-actions flex gap-2 opacity-100 pointer-events-auto"><button class="action-btn" title="Copy" data-message="{escaped_message}" _="on click copyMessage(me, my.getAttribute(\'data-message\'))">📋</button><button class="action-btn" title="Regenerate">♻️</button><button class="action-btn" title="Thumbs Up" _="on click toggle .text-green-500">👍</button><button class="action-btn" title="Thumbs Down" _="on click toggle .text-red-500">👎</button></div>'
     
-    # JSON encode the HTML to ensure transport safety over SSE
-    safe_done_data = json.dumps(done_html)
-    
-    yield f"event: done\ndata: {safe_done_data}\n\n"
+    yield f"event: done\ndata: {json.dumps(done_html)}\n\n"
 
 
 @app.get("/chat/{conv_id}/bot-stream")

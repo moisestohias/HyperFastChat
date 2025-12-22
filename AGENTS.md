@@ -1,7 +1,7 @@
 # Comprehensive Context Document: Enhanced Chat Application
 
 ## Project Overview
-This is a lightweight yet feature-rich chat application built with **FastAPI**, **HTMX**, and **Hyperscript**. It supports multi-file uploads, real-time Markdown rendering, and LaTeX mathematical equations. The application uses a modular template structure and externalized logic to ensure maintainability, performance, and robustness.
+This is a lightweight yet feature-rich chat application built with **FastAPI**, **HTMX**, and **Hyperscript**. It supports multi-file uploads, real-time Markdown rendering with LaTeX support, and a robust background-streaming architecture that persists across page reloads.
 
 ## Core Purpose
 The application provides a modern, dark-themed chat interface where users can:
@@ -13,32 +13,33 @@ The application provides a modern, dark-themed chat interface where users can:
 - Interact with messages through actions like **Copy** (message & code blocks), **Edit**, **Regenerate**, and **Feedback** (Thumbs Up/Down).
 
 ## Current Focus & Recent Work
-Recent development has stabilized the rendering pipeline and added stateful conversation management:
-1. **Rendering Pipeline Optimization**: 
-   - Moved all Markdown, LaTeX, and Syntax Highlighting logic from Hyperscript into a dedicated `static/render.js` helper.
-   - Implemented an `on load` trigger in `chat_response.html` that calls `renderMessage(me)` for robust asynchronicity.
-   - Integrated `highlight.js` with the **Atom One Dark** theme.
-2. **Stateful Backend**:
-   - Implemented a `chats` dictionary in `main.py` to store conversation history and model attributes.
-   - Shifted to UUID-based routing (`/chat/{uuid}`) to support multiple persistent sessions.
-3. **Advanced Interactivity**:
-   - Added **fixed copy buttons** for code blocks that remain visible during horizontal scrolling.
-   - Implemented a secure message-copying system using `data-*` attributes to prevent Hyperscript syntax errors with multi-line strings.
-   - Added emoji actions (✏️, 📋, ♻️, 👍, 👎) beneath each message.
+Recent development has introduced a resilient streaming architecture and optimized the rendering pipeline:
+1. **Background Generation & Polling**:
+   - Decoupled AI generation from the SSE connection. Responses are generated in an `asyncio.create_task` worker.
+   - The `/bot-stream` endpoint acts as a state-aware listener, polling the conversation history and yielding updates as they occur in the backend.
+2. **Streaming Resumption**:
+   - Implemented auto-detection of `streaming` status in `index.html`.
+   - If a page is reloaded during generation, the `chat_stream.html` partial is loaded with existing content, and the client-side `EventSource` re-connects to resume following the background task.
+3. **Rendering Pipeline Optimization**: 
+   - Moved all Markdown, LaTeX, and Syntax Highlighting logic into a dedicated `static/render.js` helper.
+   - Implemented a specialized `renderMessageStreaming(el)` for live updates and `renderMessage(el)` for final, feature-complete rendering.
+4. **Stateful Backend**:
+   - Implemented a `chats` dictionary in `main.py` that stores full message history, including file metadata and generation status.
 
 ## File Structure
 ```
 clean/
-├── main.py              # FastAPI backend, UUID routing, & conversation state
+├── main.py              # FastAPI backend, background workers, & SSE polling
 ├── static/
 │   ├── style.css        # Global CSS (Scrollbars, Markdown, Layout, Actions)
 │   └── render.js        # Core rendering logic (Marked, KaTeX, Highlight.js, Copy)
 └── templates/
-    ├── base.html        # Main layout, CDN imports, & global JS state
+    ├── base.html        # Main layout & global JS state
     ├── chat.html        # Main chat page container
-    ├── index.html       # Landing page (initializes history & welcome)
-    ├── chat_response.html # Individual message partial (with action buttons)
-    └── chat_input_field.html # Input form, multi-file logic, & conversation-aware posting
+    ├── index.html       # Landing page (History renderer & auto-resume logic)
+    ├── chat_response.html # Static message partial (User/Bot)
+    ├── chat_stream.html # Dynamic streaming message partial (SSE client)
+    └── chat_input_field.html # Input form & multi-file handling logic
 ```
 
 ## Technology Stack
@@ -46,14 +47,15 @@ clean/
 - **Templating**: Jinja2
 - **UI Framework**: Tailwind CSS (Tailwind CDN)
 - **Interactivity**: HTMX (AJAX updates) & Hyperscript (Client-side triggers)
+- **Streaming**: Native Server-Sent Events (SSE)
 - **Rendering**: Marked.js (Markdown), KaTeX (LaTeX), Highlight.js (Code Syntax)
 
 ## Important Development Rules (LLM Guidelines)
-1. **Hyperscript & Multi-line Strings**: Never pass raw multi-line template variables directly into Hyperscript literals. **Always** store them in `data-message="{{ message }}"` and retrieve them via `my.dataset.message`.
-2. **Externalize Complex Logic**: Do not write complex loops or conditionals in `_=""` tags. Call global functions defined in `static/render.js`.
-3. **Viewport Integrity**: Never allow `body` or `html` to scroll. Use `overflow: hidden` and `height: 100vh`. All scrolling should be internal.
-4. **Horizontal Overflow**: Wrap wide tags (`pre`, `code`, `.katex-display`) in `overflow-x: auto` and ensure parents have `position: relative` for fixed buttons.
-5. **Self-Rendering Partials**: When creating or modifying message partials, ensure they call `renderMessage(me)` on load to support HTMX swaps.
+1. **Background Logic**: AI responses must be generated in background tasks (`asyncio.create_task`). Never block the `StreamingResponse` generator with long-running compute.
+2. **SSE Transport**: Always use `json.dumps()` for SSE `data:` payloads to safely handle newlines and special characters.
+3. **State Resumption**: When rendering the chat history, always check for messages with a `streaming` status and load the corresponding streaming partial to allow UI continuity.
+4. **Hyperscript & Data Attributes**: Never pass raw multi-line template variables into Hyperscript. Store them in `data-message="{{ message }}"` (properly escaped) and access via `my.dataset.message`.
+5. **Horizontal Overflow**: Ensure wide elements like `pre`, `code`, and `.katex-display` use `overflow-x: auto` and reside in relative containers for fixed UI elements (like copy buttons).
 
 ---
 
