@@ -2,7 +2,7 @@ import uuid
 import asyncio
 
 from fastapi import FastAPI, Request, UploadFile, File, Form, Depends
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
 from typing import Annotated
 
@@ -94,46 +94,89 @@ async def send_message(request: Request, conv_id: str, form_data: Annotated[Mess
     })
     
     # Return user message and a trigger for the bot response
-    # This delegates the bot logic to a separate request to allow for async delay
+    # This initiates a stream via SSE
     bot_trigger_html = f"""
-    <div hx-get="/chat/{conv_id}/bot-response" 
-         hx-trigger="load" 
-         hx-swap="outerHTML">
-         <div class="flex items-center gap-2 text-gray-400 text-sm animate-pulse ml-2 mb-4">
-            <div class="w-2 h-2 bg-gray-400 rounded-full"></div>
-            <span>Thinking...</span>
+    <div hx-ext="sse" sse-connect="/chat/{conv_id}/bot-stream" sse-swap="message" hx-swap="none"
+         class="flex flex-col gap-2 mb-4 items-start w-full"
+         _="on htmx:sseMessage(data) call processStreamToken(me, data)
+            on htmx:sseAfterMessage if data is '[DONE]' 
+              get #chatForm then remove @disabled from it
+              get #sendButton then remove .opacity-50 from it then set @disabled to false
+            ">
+         
+         <div class="bg-gray-800 text-gray-100 rounded-t-2xl rounded-br-2xl p-2 shadow-md max-w-[80%] ml-2 border border-gray-700">
+             <div class="thinking-indicator flex items-center gap-2 text-gray-400 text-sm animate-pulse mb-1">
+                <div class="w-2 h-2 bg-blue-500 rounded-full"></div>
+                <span>Thinking...</span>
+             </div>
+             <div class="streaming-content text-sm leading-relaxed whitespace-pre-wrap"></div>
+         </div>
+
+         <!-- Message Actions (hidden during stream) -->
+         <div class="message-actions hidden ml-2">
+             <button class="action-btn" title="Copy" 
+                     _="on click copyMessage(me, my.closest('.message-actions').previousElementSibling.querySelector('.streaming-content').dataset.message)">📋</button>
+             <button class="action-btn" title="Regenerate">♻️</button>
+             <button class="action-btn" title="Thumbs Up" _="on click toggle .text-green-500">👍</button>
+             <button class="action-btn" title="Thumbs Down" _="on click toggle .text-red-500">👎</button>
          </div>
     </div>
     """
+
+
     
     return HTMLResponse(content=user_html + bot_trigger_html)
 
-async def generate_bot_response(conv_id: str):
-    """ Delegated bot logic: waits 1 second, updates history, and returns the response. """
-    await asyncio.sleep(1)
-    if conv_id not in chats:
-        return None
+@app.get("/chat/{conv_id}/bot-stream")
+async def bot_stream(conv_id: str):
+    async def event_generator():
+        if conv_id not in chats:
+            yield "event: message\ndata: Conversation not found\n\n"
+            return
+
+        messages = chats[conv_id]["messages"]
+        user_message = next((m["content"] for m in reversed(messages) if m["role"] == "user"), "Hello!")
         
-    # Find the last message from user to echo it
-    messages = chats[conv_id]["messages"]
-    user_message = next((m["content"] for m in reversed(messages) if m["role"] == "user"), "Hello!")
-    
-    bot_message = user_message
-    
-    # Update conversation history with assistant message
-    chats[conv_id]["messages"].append({
-        "role": "assistant",
-        "content": bot_message
-    })
-    
-    return bot_message
+        # Initialize assistant message in history immediately
+        # This ensures that even if the connection is cut, the message is saved.
+        # It also allows for persistence across reloads.
+        chats[conv_id]["messages"].append({
+            "role": "assistant",
+            "content": ""
+        })
+        msg_index = len(chats[conv_id]["messages"]) - 1
+        
+        full_response = ""
+        # Simulate thinking
+        await asyncio.sleep(0.5)
+        
+        # Split into tokens (characters and spaces) for a smooth typing effect
+        import re
+        tokens = re.findall(r'\S+|\s+', user_message)
+        
+        for token in tokens:
+            full_response += token
+            # Update history incrementally
+            chats[conv_id]["messages"][msg_index]["content"] = full_response
+            
+            # Escape newlines for SSE data field
+            safe_token = token.replace("\n", "\\n")
+            yield f"event: message\ndata: {safe_token}\n\n"
+            await asyncio.sleep(0.02) # Slightly faster for better feel
+        
+        # Signal end of stream
+        yield "event: message\ndata: [DONE]\n\n"
+
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
 
 @app.get("/chat/{conv_id}/bot-response")
 async def bot_response(request: Request, conv_id: str):
-    bot_message = await generate_bot_response(conv_id)
-    
-    if bot_message is None:
+    """ Fallback non-streaming endpoint. """
+    if conv_id not in chats:
         return HTMLResponse(content="Conversation not found", status_code=404)
+        
+    messages = chats[conv_id]["messages"]
+    bot_message = next((m["content"] for m in reversed(messages) if m["role"] == "assistant"), "...")
 
     return templates.TemplateResponse("chat_response.html", {
         "request": request,

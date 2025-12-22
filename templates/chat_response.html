@@ -2,7 +2,7 @@
     <div
         class="max-w-[80%] {% if sender == 'user' %}bg-blue-600 text-white rounded-t-2xl rounded-bl-2xl{% else %}bg-gray-800 text-gray-100 rounded-t-2xl rounded-br-2xl{% endif %} p-2 shadow-md">
         {% if message %}
-        <p class="text-sm leading-relaxed whitespace-pre-wrap" _="on load renderMessage(me)">{{ message }}</p>
+        <div class="text-sm leading-relaxed whitespace-pre-wrap" _="on load renderMessage(me)">{{ message }}</div>
         {% endif %}
 
         {% if files %}

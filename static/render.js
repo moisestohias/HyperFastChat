@@ -1,12 +1,22 @@
-window.renderMessage = function (el) {
+window.renderMessage = function (el, options = {}) {
     if (!window.marked || !window.renderMathInElement || !window.hljs) {
         console.warn('Markdown, LaTeX, or Highlight renderer not found. Retrying in 50ms...');
-        setTimeout(() => window.renderMessage(el), 50);
+        setTimeout(() => window.renderMessage(el, options), 50);
         return;
     }
 
-    // Capture the raw text before any processing
-    const rawContent = el.innerText;
+    // Configure Marked options once
+    if (!window.markedConfigured) {
+        marked.use({
+            breaks: true, // Convert \n to <br>
+            gfm: true
+        });
+        window.markedConfigured = true;
+    }
+
+    // Capture the raw text before any processing. 
+    // If we're streaming, prioritize the raw data buffer.
+    const rawContent = el.dataset.raw || el.innerText;
 
     // 1. Render Markdown
     el.innerHTML = marked.parse(rawContent);
@@ -20,7 +30,15 @@ window.renderMessage = function (el) {
         throwOnError: false
     });
 
-    // 3. Add Copy Buttons and Syntax Highlighting to Code Blocks
+    // 3. Syntax Highlighting (Optional during streaming for performance)
+    if (options.skipHighlighting) {
+        // Just apply basic style classes
+        el.classList.remove('whitespace-pre-wrap');
+        el.classList.add('markdown-content');
+        return;
+    }
+
+    // Add Copy Buttons and Syntax Highlighting to Code Blocks
     const codeBlocks = el.querySelectorAll('pre');
     codeBlocks.forEach(pre => {
         const code = pre.querySelector('code');
@@ -85,5 +103,58 @@ window.copyMessage = function (btn, text) {
     }).catch(err => {
         console.error('Failed to copy message: ', err);
     });
+};
+
+window.processStreamToken = function (el, data) {
+    if (!data) return;
+
+    // Initialize raw buffer if needed
+    if (!el.dataset.raw) el.dataset.raw = '';
+
+    // Handle end of stream signal
+    if (data === '[DONE]') {
+        el.removeAttribute('sse-connect');
+        const thinking = el.querySelector('.thinking-indicator');
+        if (thinking) thinking.style.display = 'none';
+
+        const actions = el.querySelector('.message-actions');
+        if (actions) actions.classList.remove('hidden');
+
+        const target = el.querySelector('.streaming-content');
+        if (target) {
+            target.dataset.message = el.dataset.raw;
+            // Final render with full syntax highlighting
+            window.renderMessage(target);
+        }
+        return;
+    }
+
+    // Replace escaped newlines from SSE
+    const token = data.replace(/\\n/g, '\n');
+
+    // Accumulate content
+    el.dataset.raw += token;
+
+    // Update UI
+    const target = el.querySelector('.streaming-content');
+    if (target) {
+        // Sync the raw content to the target for renderMessage to pick up
+        target.dataset.raw = el.dataset.raw;
+        // Let renderMessage turn that text into HTML
+        // We skip highlighting during stream for speed
+        window.renderMessage(target, { skipHighlighting: true });
+    }
+
+    // Hide thinking indicator on first token
+    const thinking = el.querySelector('.thinking-indicator');
+    if (thinking && thinking.style.display !== 'none') {
+        thinking.style.display = 'none';
+    }
+
+    // Auto-scroll
+    const chatWindow = document.getElementById('chat-messages');
+    if (chatWindow) {
+        chatWindow.scrollTop = chatWindow.scrollHeight;
+    }
 };
 

@@ -1,10 +1,15 @@
 <form id="chatForm" hx-encoding="multipart/form-data" hx-post="/chat/{{ conversation_id }}/send-message"
     hx-trigger="submit" hx-target="#new-messages" hx-swap="beforeend" class="relative bg-gray-800 rounded-3xl shadow-lg"
-    _="on htmx:afterRequest 
-      set #messageInput.value to '' 
-      set #messageInput.style.height to 'auto'
-      set #fileInput.value to ''
-      set #filePreview.innerHTML to ''">
+    _="on submit 
+         if my[@disabled] halt the event end
+         set my[@disabled] to true
+         set #sendButton[@disabled] to true
+         add .opacity-50 to #sendButton
+       on htmx:afterRequest 
+         set #messageInput.value to '' 
+         set #messageInput.style.height to 'auto'
+         set #fileInput.value to ''
+         set #filePreview.innerHTML to ''">
 
     <!-- File Preview Area -->
     <div id="filePreview" class="px-2 pt-2 flex flex-wrap gap-2"></div>
@@ -31,7 +36,7 @@
          end"></textarea>
 
         <!-- Send Button -->
-        <button type="submit"
+        <button id="sendButton" type="submit"
             class="flex-shrink-0 w-10 h-10 rounded-full bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center transition-colors">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 10l7-7m0 0l7 7m-7-7v18" />
