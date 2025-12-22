@@ -1,0 +1,103 @@
+<!-- Streaming Bot Response Container -->
+<!-- Uses native EventSource for reliable streaming with Markdown rendering -->
+<div id="stream-container-{{ stream_id }}" class="flex flex-col gap-2 mb-4 items-start">
+
+    <div class="max-w-[80%] bg-gray-800 text-gray-100 rounded-t-2xl rounded-br-2xl p-2 shadow-md">
+        <!-- Streaming content target -->
+        <div id="stream-content-{{ stream_id }}" class="text-sm leading-relaxed markdown-content">
+            <span class="text-gray-400 animate-pulse">▋</span>
+        </div>
+    </div>
+
+    <!-- Action buttons - shown when streaming completes -->
+    <div id="stream-actions-{{ stream_id }}" class="message-actions hidden"></div>
+</div>
+
+<script>
+    (function () {
+        const streamId = "{{ stream_id }}";
+        const convId = "{{ conversation_id }}";
+        const contentEl = document.getElementById('stream-content-' + streamId);
+        const actionsEl = document.getElementById('stream-actions-' + streamId);
+
+        if (!contentEl) return;
+
+        // Create EventSource connection for SSE streaming
+        const eventSource = new EventSource('/chat/' + convId + '/bot-stream');
+
+        // Track accumulated raw content
+        let rawAccumulated = '';
+
+        // Handle token events - each event contains the full accumulated text so far
+        eventSource.addEventListener('token', function (evt) {
+            try {
+                // Data is JSON-encoded string - parse it to restore newlines etc.
+                rawAccumulated = JSON.parse(evt.data);
+            } catch (e) {
+                rawAccumulated = evt.data;
+            }
+
+            // Store raw text in the element
+            contentEl.textContent = rawAccumulated;
+
+            // Apply streaming render (safe HTML with line breaks)
+            if (window.renderMessageStreaming) {
+                window.renderMessageStreaming(contentEl);
+            }
+
+            // Add blinking cursor at the end
+            const existingCursor = contentEl.querySelector('.stream-cursor');
+            if (existingCursor) existingCursor.remove();
+
+            const cursor = document.createElement('span');
+            cursor.className = 'stream-cursor animate-pulse text-blue-400';
+            cursor.textContent = '▋';
+            contentEl.appendChild(cursor);
+
+            // Auto-scroll to bottom
+            const chatMessages = document.getElementById('chat-messages');
+            if (chatMessages) {
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+            }
+        });
+
+        // Handle done event - streaming complete
+        eventSource.addEventListener('done', function (evt) {
+            // Close the SSE connection
+            eventSource.close();
+
+            // Remove cursor
+            const cursor = contentEl.querySelector('.stream-cursor');
+            if (cursor) cursor.remove();
+
+            // Final full render with Markdown, LaTeX, syntax highlighting, and copy buttons
+            if (rawAccumulated) {
+                contentEl.textContent = rawAccumulated;
+                if (window.renderMessage) {
+                    window.renderMessage(contentEl);
+                }
+            }
+
+            // Show action buttons from server response
+            actionsEl.innerHTML = evt.data;
+            actionsEl.classList.remove('hidden');
+
+            // Process hyperscript on new action buttons
+            if (window._hyperscript) {
+                window._hyperscript.processNode(actionsEl);
+            }
+
+            // Final scroll
+            const chatMessages = document.getElementById('chat-messages');
+            if (chatMessages) {
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+            }
+        });
+
+        // Handle errors
+        eventSource.addEventListener('error', function (evt) {
+            eventSource.close();
+            contentEl.innerHTML = '<span class="text-red-400">Error loading response. Please try again.</span>';
+        });
+    })();
+</script>

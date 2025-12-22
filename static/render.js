@@ -5,6 +5,12 @@ window.renderMessage = function (el) {
         return;
     }
 
+    // Configure marked to treat single newlines as <br> tags
+    marked.setOptions({
+        breaks: true,
+        gfm: true
+    });
+
     // Capture the raw text before any processing
     const rawContent = el.innerText;
 
@@ -87,3 +93,59 @@ window.copyMessage = function (btn, text) {
     });
 };
 
+/**
+ * Streaming-optimized render function for live token updates.
+ * Renders Markdown/LaTeX live as tokens arrive.
+ * Uses 'breaks: true' to ensure newlines are respected during the stream.
+ */
+window.renderMessageStreaming = function (el) {
+    if (!window.marked || !window.renderMathInElement || !window.hljs) {
+        console.warn('Renderers not ready, retrying...');
+        setTimeout(() => window.renderMessageStreaming(el), 50);
+        return;
+    }
+
+    // Configure marked to treat single newlines as <br> tags
+    marked.setOptions({
+        breaks: true,
+        gfm: true
+    });
+
+    // Get the raw accumulated text
+    const rawContent = el.textContent || el.innerText;
+
+    // Skip if empty
+    if (!rawContent || !rawContent.trim()) return;
+
+    // 1. Render Markdown live
+    el.innerHTML = marked.parse(rawContent);
+
+    // 2. Render LaTeX live
+    renderMathInElement(el, {
+        delimiters: [
+            { left: '$$', right: '$$', display: true },
+            { left: '$', right: '$', display: false }
+        ],
+        throwOnError: false
+    });
+
+    // 3. Lightweight syntax highlighting
+    const codeBlocks = el.querySelectorAll('pre code');
+    codeBlocks.forEach(code => {
+        if (!code.classList.contains('hljs')) {
+            hljs.highlightElement(code);
+        }
+    });
+
+    // Apply markdown styling
+    el.classList.add('markdown-content');
+};
+
+/**
+ * Final render function called when streaming is complete.
+ * This does full markdown/LaTeX/syntax parsing with all features.
+ */
+window.finalizeStreamedMessage = function (el) {
+    // Call the full render function to add copy buttons and final styling
+    window.renderMessage(el);
+};

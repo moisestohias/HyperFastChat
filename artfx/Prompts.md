@@ -1,3 +1,8 @@
+## [[In-place-Message-Editing]]
+## [[Streaming]]
+
+---
+
 Refact @index.html into partials, specifically base.html and chat_input_field.html, 
 Note, currently we don't have response template to send back response to use, So, Add to add chat_response.html template and chat.html that contains common elements between   
 
@@ -101,3 +106,9 @@ chats = {
 ```
 
 Do not make UI changes use, just implement the feature request here
+
+===
+
+The Markdown formatting fails to render properly during generation, appearing as a single, continuous line of text. Proper rendering only occurs after the page is reloaded. Additionally, if the page is reloaded while generation is in progress, the process is interrupted and stops prematurely.
+
+Refactor the `send_message` function to delegate the Mock bot response logic to a separate function. This new function should introduce a 1-second delay using sleep and then dispatch an update to the UI. Ensure clean separation of concerns and maintain clear, maintainable code structure.
