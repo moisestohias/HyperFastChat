@@ -192,7 +192,21 @@ async def generate_bot_response_stream(conv_id: str):
     
     # Send the 'done' event with action buttons
     escaped_message = html_module.escape(final_content).replace('\n', '&#10;').replace('\r', '').replace('"', '&quot;')
-    done_html = f'<div class="message-actions flex gap-2 opacity-100 pointer-events-auto"><button class="action-btn" title="Copy" data-message="{escaped_message}" _="on click copyMessage(me, my.getAttribute(\'data-message\'))">📋</button><button class="action-btn" title="Regenerate">♻️</button><button class="action-btn" title="Thumbs Up" _="on click toggle .text-green-500">👍</button><button class="action-btn" title="Thumbs Down" _="on click toggle .text-red-500">👎</button></div>'
+    done_html = f'''
+    <button class="action-btn" title="Copy" data-message="{escaped_message}"
+        _="on click copyMessage(me, my.getAttribute(\'data-message\'))">
+        <span class="material-symbols-rounded">content_copy</span>
+    </button>
+    <button class="action-btn" title="Regenerate">
+        <span class="material-symbols-rounded">refresh</span>
+    </button>
+    <button class="action-btn" title="Helpful" _="on click toggle .text-blue-600">
+        <span class="material-symbols-rounded">thumb_up</span>
+    </button>
+    <button class="action-btn" title="Not Helpful" _="on click toggle .text-red-600">
+        <span class="material-symbols-rounded">thumb_down</span>
+    </button>
+    '''
     
     yield f"event: done\ndata: {json.dumps(done_html)}\n\n"
 

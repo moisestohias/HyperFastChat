@@ -23,13 +23,45 @@
     <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
 
+    <!-- Google Fonts & Icons -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,500;1,600;1,700&family=JetBrains+Mono:ital,wght@0,100..800;1,100..800&family=Outfit:wght@100..900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
+
     <link rel="stylesheet" href="/static/style.css">
     <script src="/static/render.js"></script>
+
+    <style>
+        :root {
+            --bg-dark: #1d2021;
+            --bg-panel: #282828;
+            --bg-bubble-bot: #32302f;
+            --bg-bubble-user: #3c3836;
+            --text-main: #ebdbb2;
+            --text-dim: #a89984;
+            --accent: #d65d0e;
+            --border-heavy: 2px solid #504945;
+            --border-light: 1px solid #3c3836;
+        }
+        body {
+            font-family: 'Outfit', sans-serif;
+            color: var(--text-main);
+            background-color: var(--bg-dark);
+        }
+        .font-serif { font-family: 'Cormorant Garamond', serif; }
+        .font-mono { font-family: 'JetBrains Mono', monospace; }
+        .material-symbols-rounded {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            display: inline-block;
+            vertical-align: middle;
+        }
+    </style>
 
     {% block head %}{% endblock %}
 </head>
 
-<body class="bg-gray-900 h-full flex flex-col">
+<body class="bg-[#1d2021] h-full flex flex-col text-[#ebdbb2]">
     {% block content %}{% endblock %}
 </body>
 

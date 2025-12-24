@@ -1,16 +1,15 @@
 <!-- Streaming Bot Response Container -->
-<!-- Uses native EventSource for reliable streaming with Markdown rendering -->
-<div id="stream-container-{{ stream_id }}" class="flex flex-col gap-2 mb-4 items-start">
-
-    <div class="max-w-[80%] bg-gray-800 text-gray-100 rounded-t-2xl rounded-br-2xl p-2 shadow-md">
+<div id="stream-container-{{ stream_id }}" class="message-container flex flex-col gap-1 mb-6 items-start animate-fade-in">
+    <!-- Bubble -->
+    <div class="max-w-[92%] md:max-w-[85%] neo-card p-2 md:p-3 bg-[#32302f]">
         <!-- Streaming content target -->
-        <div id="stream-content-{{ stream_id }}" class="text-sm leading-relaxed markdown-content">
-            {{ message if message else '' }}<span class="stream-cursor animate-pulse text-blue-400">▋</span>
+        <div id="stream-content-{{ stream_id }}" class="markdown-content text-[#ebdbb2] text-[15px]">
+            {{ message if message else '' }}<span class="stream-cursor"></span>
         </div>
     </div>
 
-    <!-- Action buttons - shown when streaming completes -->
-    <div id="stream-actions-{{ stream_id }}" class="message-actions hidden"></div>
+    <!-- Action buttons - shown when streaming completes (Moved outside) -->
+    <div id="stream-actions-{{ stream_id }}" class="message-actions px-1 hidden"></div>
 </div>
 
 <script>
@@ -22,78 +21,72 @@
 
         if (!contentEl) return;
 
-        // Track accumulated raw content - initialized from server-side state
-        let rawAccumulated = {{ (message if message else '') | tojson
-    }};
+        let rawAccumulated = {{ (message if message else '') | tojson }};
+        const eventSource = new EventSource('/chat/' + convId + '/bot-stream');
 
-    // Create EventSource connection for SSE streaming
-    const eventSource = new EventSource('/chat/' + convId + '/bot-stream');
+        const updateUI = (text) => {
+            contentEl.textContent = text;
+            if (window.renderMessageStreaming) {
+                window.renderMessageStreaming(contentEl);
+            }
 
-    // Helper to update UI with rendered content and maintain cursor
-    const updateUI = (text) => {
-        contentEl.textContent = text;
-        if (window.renderMessageStreaming) {
-            window.renderMessageStreaming(contentEl);
+            // Create and append the cursor to the last child element to keep it on the same line
+            const cursor = document.createElement('span');
+            cursor.className = 'stream-cursor';
+            
+            const lastChild = contentEl.lastElementChild;
+            if (lastChild && (lastChild.tagName === 'P' || lastChild.tagName === 'LI')) {
+                lastChild.appendChild(cursor);
+            } else {
+                contentEl.appendChild(cursor);
+            }
+
+            const chatMessages = document.getElementById('chat-messages');
+            if (chatMessages) {
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+            }
+        };
+
+        if (rawAccumulated) {
+            updateUI(rawAccumulated);
         }
 
-        const cursor = document.createElement('span');
-        cursor.className = 'stream-cursor animate-pulse text-blue-400';
-        // cursor.textContent = '▋';
-        contentEl.appendChild(cursor);
+        eventSource.addEventListener('token', function (evt) {
+            try {
+                rawAccumulated = JSON.parse(evt.data);
+            } catch (e) {
+                rawAccumulated = evt.data;
+            }
+            updateUI(rawAccumulated);
+        });
 
-        const chatMessages = document.getElementById('chat-messages');
-        if (chatMessages) {
-            chatMessages.scrollTop = chatMessages.scrollHeight;
-        }
-    };
+        eventSource.addEventListener('done', function (evt) {
+            eventSource.close();
+            contentEl.textContent = rawAccumulated;
+            if (window.renderMessage) {
+                window.renderMessage(contentEl);
+            }
 
-    // Initial render if resuming
-    if (rawAccumulated) {
-        updateUI(rawAccumulated);
-    }
+            try {
+                actionsEl.innerHTML = JSON.parse(evt.data);
+            } catch (e) {
+                actionsEl.innerHTML = evt.data;
+            }
+            actionsEl.classList.remove('hidden');
 
-    // Handle token events - each event contains the full accumulated text so far
-    eventSource.addEventListener('token', function (evt) {
-        try {
-            rawAccumulated = JSON.parse(evt.data);
-        } catch (e) {
-            rawAccumulated = evt.data;
-        }
-        updateUI(rawAccumulated);
-    });
+            if (window._hyperscript) {
+                window._hyperscript.processNode(actionsEl);
+            }
 
-    // Handle done event - streaming complete
-    eventSource.addEventListener('done', function (evt) {
-        eventSource.close();
+            const chatMessages = document.getElementById('chat-messages');
+            if (chatMessages) {
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+            }
+        });
 
-        // Final full render with all features
-        contentEl.textContent = rawAccumulated;
-        if (window.renderMessage) {
-            window.renderMessage(contentEl);
-        }
-
-        // Show action buttons
-        try {
-            actionsEl.innerHTML = JSON.parse(evt.data);
-        } catch (e) {
-            actionsEl.innerHTML = evt.data;
-        }
-        actionsEl.classList.remove('hidden');
-
-        if (window._hyperscript) {
-            window._hyperscript.processNode(actionsEl);
-        }
-
-        const chatMessages = document.getElementById('chat-messages');
-        if (chatMessages) {
-            chatMessages.scrollTop = chatMessages.scrollHeight;
-        }
-    });
-
-    // Handle errors
-    eventSource.addEventListener('error', function (evt) {
-        eventSource.close();
-        console.error('SSE Error:', evt);
-    });
+        eventSource.addEventListener('error', function (evt) {
+            eventSource.close();
+            console.error('SSE Error:', evt);
+        });
     }) ();
 </script>
