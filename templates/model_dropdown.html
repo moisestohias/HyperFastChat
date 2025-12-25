@@ -17,19 +17,28 @@
                 {% for p_id, p_config in providers_config.items() %}
                 <button
                     class="w-full text-left px-4 py-2 text-sm {% if p_id == current_provider %}text-blue-400 bg-zinc-700{% else %}text-gray-300 hover:bg-zinc-700 hover:text-white{% endif %} transition-colors flex items-center justify-between"
-                    role="menuitem" {% if conversation_id=="new" %} hx-get="/partials/model-options?provider={{ p_id }}"
-                    hx-target="#model-list-container" _="on click 
+                    role="menuitem" {% if conversation_id=="new" %} _="on click 
                         add .hidden to #provider-menu
                         set #selected-provider-input.value to '{{ p_id }}'
                         set localStorage.lastSelectedProvider to '{{ p_id }}'
                         put '{{ p_config.name }}' into #provider-btn-span
-                        -- Auto-select the first model of this provider
-                        wait 50ms then
-                        -- We trigger a click on the first model in the loaded list
-                        trigger click on #model-list-container.firstElementChild
-                        " {% else %} hx-patch="/chat/{{ conversation_id }}/provider" hx-ext="json-enc"
-                    hx-vals='{"provider": "{{ p_id }}"}' hx-target="#model-dropdown-container" hx-swap="innerHTML" {%
-                    endif %}>
+                        
+                        -- Toggle Model List Visibility
+                        add .hidden to .provider-models-list
+                        remove .hidden from #provider-models-{{ p_id }}
+                        
+                        -- Auto-select Default Model
+                        set defaultModel to '{{ p_config.default_model }}'
+                        set #selected-model-input.value to defaultModel
+                        put defaultModel into #model-btn-span
+                        
+                        -- Update Visual Selection in Provider Menu
+                        take .text-blue-400 from .text-blue-400 in #provider-menu
+                        take .bg-zinc-700 from .bg-zinc-700 in #provider-menu
+                        add .text-blue-400 to me
+                        add .bg-zinc-700 to me" {% else %} hx-patch="/chat/{{ conversation_id }}/provider"
+                    hx-ext="json-enc" hx-vals='{"provider": "{{ p_id }}"}' hx-target="#model-dropdown-container"
+                    hx-swap="innerHTML" {% endif %}>
                     {{ p_config.name }}
                     {% if p_id == current_provider %}
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -54,62 +63,45 @@
         </button>
 
         <div id="model-menu"
-            class="hidden absolute right-0 mt-2 w-64 origin-top-right rounded-xl bg-zinc-800 border border-gray-700 shadow-2xl z-50 overflow-hidden context-menu"
+            class="hidden absolute right-0 mt-2 w-72 origin-top-right rounded-xl bg-zinc-800 border border-gray-700 shadow-2xl z-50 overflow-hidden context-menu"
             role="menu">
-            <div class="py-1 max-h-96 overflow-y-auto custom-scrollbar" role="none" id="model-list-container">
-                {% if current_provider in providers_config %}
-                {% include "model_options_list.html" with context %}
-                {% endif %}
+
+            <div id="model-list-container" class="py-1 max-h-96 overflow-y-auto custom-scrollbar">
+                {% for p_id, p_config in providers_config.items() %}
+                <div id="provider-models-{{ p_id }}"
+                    class="provider-models-list {% if p_id != current_provider %}hidden{% endif %}">
+                    {% for model_id in p_config.available_models %}
+                    <button
+                        class="w-full text-left px-4 py-2 text-sm text-gray-300 hover:bg-zinc-700 hover:text-white transition-colors flex items-center justify-between model-option-btn {% if p_id == current_provider and model_id == current_model %}text-blue-400 bg-zinc-700{% endif %}"
+                        role="menuitem" {% if conversation_id=="new" %} _="on click 
+                            set #selected-model-input.value to '{{ model_id }}'
+                            set localStorage.lastSelectedModel to '{{ model_id }}'
+                            put '{{ model_id }}' into #model-btn-span
+                            add .hidden to #model-menu
+                            
+                            -- Visual Selection (Local Scope)
+                            take .text-blue-400 from .text-blue-400 in closest .provider-models-list
+                            take .bg-zinc-700 from .bg-zinc-700 in closest .provider-models-list
+                            add .text-blue-400 to me
+                            add .bg-zinc-700 to me
+                            
+                            -- Toggle Checkmark
+                            add .hidden to .check-icon in closest .provider-models-list
+                            remove .hidden from .check-icon in me" {% else %}
+                        hx-patch="/chat/{{ conversation_id }}/model" hx-ext="json-enc"
+                        hx-vals='{"model": "{{ model_id }}"}' hx-target="#model-dropdown-container" hx-swap="innerHTML"
+                        {% endif %}>
+                        <span class="truncate">{{ model_id }}</span>
+                        <!-- Checkmark Logic -->
+                        <svg class="w-4 h-4 check-icon {% if not (p_id == current_provider and model_id == current_model) %}hidden{% endif %}"
+                            fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                        </svg>
+                    </button>
+                    {% endfor %}
+                </div>
+                {% endfor %}
             </div>
         </div>
     </div>
 </div>
-
-{% if conversation_id == "new" %}
-<div id="providers-data-provider" data-config='{{ providers_config | tojson | safe }}' class="hidden"></div>
-<script>
-    (function () {
-        // Shared init logic for New Chat
-        function initializeNewChatDropdowns() {
-            const lastProvider = localStorage.getItem('lastSelectedProvider');
-            const lastModel = localStorage.getItem('lastSelectedModel');
-
-            if (lastProvider) {
-                const provInput = document.getElementById('selected-provider-input');
-                if (provInput) provInput.value = lastProvider;
-
-                const providerBtnSpan = document.getElementById('provider-btn-span');
-                const configProvider = document.getElementById('providers-data-provider');
-                if (providerBtnSpan && configProvider) {
-                    const config = JSON.parse(configProvider.dataset.config);
-                    if (config[lastProvider]) {
-                        providerBtnSpan.textContent = config[lastProvider].name;
-
-                        // We need to fetch models for this provider
-                        // We can manually trigger htmx.ajax or just wait for the user
-                        // But for a good UX, we should load them now.
-                        htmx.ajax('GET', `/partials/model-options?provider=${lastProvider}&current_model=${lastModel || ''}`, {
-                            target: '#model-list-container',
-                            swap: 'innerHTML'
-                        }).then(() => {
-                            if (lastModel) {
-                                const modelInput = document.getElementById('selected-model-input');
-                                if (modelInput) modelInput.value = lastModel;
-                                const modelBtnSpan = document.getElementById('model-btn-span');
-                                if (modelBtnSpan) modelBtnSpan.textContent = lastModel;
-                            }
-                        });
-                    }
-                }
-            }
-        }
-
-        // Run on load
-        if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', initializeNewChatDropdowns);
-        } else {
-            initializeNewChatDropdowns();
-        }
-    })();
-</script>
-{% endif %}

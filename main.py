@@ -9,6 +9,7 @@ from typing import Annotated
 from fastapi.staticfiles import StaticFiles
 import html as html_module
 import json
+from LLMConnect.api_client_factory import APIClientFactory, Provider
 
 templates = Jinja2Templates(directory="templates")
 app = FastAPI()
@@ -19,7 +20,7 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 chats = {}
 
 def load_providers_config():
-    with open("providers_config.json", "r") as f:
+    with open("LLMConnect/providers_config.json", "r") as f:
         return json.load(f)
 
 PROVIDERS_CONFIG = load_providers_config()
@@ -30,7 +31,7 @@ class MessageForm:
         self,
         message: str = Form(...),
         files: list[UploadFile] = File(default=[]),
-        provider: str = Form("aimlapi"),
+        provider: str = Form("groq"),
         model: str = Form("deepseek/deepseek-prover-v2")
     ):
         self.message = message
@@ -40,7 +41,7 @@ class MessageForm:
 
 @app.get("/", response_class=HTMLResponse)
 async def read_root(request: Request):
-    default_p = "aimlapi"
+    default_p = "groq"
     return templates.TemplateResponse("index.html", {
         "request": request, 
         "conversation_id": "new",
@@ -55,7 +56,7 @@ async def read_root(request: Request):
 async def get_chat(request: Request, conv_id: str):
     # Initialize conversation if it doesn't exist
     if conv_id not in chats:
-        default_p = "aimlapi"
+        default_p = "groq"
         chats[conv_id] = {
             "title": "Untitled",
             "provider": default_p,
@@ -77,7 +78,7 @@ async def get_chat(request: Request, conv_id: str):
         "history": ui_messages,
         "stream_id": str(uuid.uuid4())[:8],
         "providers_config": PROVIDERS_CONFIG,
-        "current_provider": chats[conv_id].get("provider", "aimlapi"),
+        "current_provider": chats[conv_id].get("provider", "groq"),
         "current_model": chats[conv_id].get("model", "")
     })
 
@@ -181,41 +182,66 @@ async def send_message(request: Request, conv_id: str, form_data: Annotated[Mess
 
 async def run_chatbot_logic(conv_id: str):
     """
-    Background task that simulates LLM generation independently of the UI state.
-    Updates the conversation history in real-time.
+    Background task that interacts with LLM providers via LLMConnect.
+    Updates the conversation history in real-time as tokens are received.
     """
     if conv_id not in chats:
         return
     
     messages = chats[conv_id]["messages"]
+    # Target assistant message is the last message in history (the empty placeholder)
     assistant_msg = next((m for m in reversed(messages) if m["role"] == "assistant"), None)
-    user_message = next((m["content"] for m in reversed(messages) if m["role"] == "user"), "Hello!")
     
-    # Simulate generation
-    provider = chats[conv_id].get("provider", "unknown")
-    model = chats[conv_id].get("model", "unknown")
-    full_response = f"[{provider} | {model}] {user_message}"
-    accumulated = ""
-    tokens = full_response.split(" ")
+    if not assistant_msg:
+        return
+
+    # Simulation setup
+    provider_name = chats[conv_id].get("provider", "groq")
+    model_name = chats[conv_id].get("model")
     
-    # Simulate thinking
-    await asyncio.sleep(0.3)
+    try:
+        provider = Provider(provider_name)
+    except ValueError:
+        assistant_msg["content"] = f"Error: Unsupported provider '{provider_name}'"
+        assistant_msg["status"] = "error"
+        return
+
+    # Initialize LLMConnect client
+    try:
+        client = APIClientFactory.create_async_client(
+            provider=provider,
+            model=model_name
+        )
+    except Exception as e:
+        assistant_msg["content"] = f"Error initializing client: {str(e)}"
+        assistant_msg["status"] = "error"
+        return
+
+    # Prepare historical context (everything except the current streaming placeholder)
+    history_to_send = []
+    for m in messages:
+        if m is assistant_msg:
+            continue
+        history_to_send.append({"role": m["role"], "content": m["content"]})
     
-    for token in tokens:
-        if accumulated:
-            accumulated += " "
-        accumulated += token
+    try:
+        accumulated = ""
+        # The chat method is flexible - if passed a list, it treats it as full history
+        stream = await client.chat(history_to_send, stream=True)
         
-        # Update shared state
-        if assistant_msg:
+        async for chunk in stream:
+            accumulated += chunk
             assistant_msg["content"] = accumulated
+            # Yield control back to the event loop
+            await asyncio.sleep(0)
             
-        # Simulate token delay
-        await asyncio.sleep(0.05)
-    
-    # Mark as complete when finished
-    if assistant_msg:
         assistant_msg["status"] = "complete"
+            
+    except Exception as e:
+        assistant_msg["content"] = f"Error during generation: {str(e)}"
+        assistant_msg["status"] = "error"
+    finally:
+        await client.close()
 
 async def generate_bot_response_stream(conv_id: str):
     """
@@ -306,7 +332,7 @@ async def get_chat_history(request: Request, conv_id: str):
     input_field_html = templates.get_template("chat_input_field.html").render({
         "request": request,
         "conversation_id": conv_id,
-        "current_provider": chats[conv_id].get("provider", "aimlapi"),
+        "current_provider": chats[conv_id].get("provider", "groq"),
         "current_model": chats[conv_id].get("model", "")
     })
 
@@ -314,7 +340,7 @@ async def get_chat_history(request: Request, conv_id: str):
         "request": request,
         "conversation_id": conv_id,
         "providers_config": PROVIDERS_CONFIG,
-        "current_provider": chats[conv_id].get("provider", "aimlapi"),
+        "current_provider": chats[conv_id].get("provider", "groq"),
         "current_model": chats[conv_id].get("model", "")
     })
     
@@ -396,7 +422,7 @@ async def set_model(request: Request, conv_id: str, data: SetModelModel):
         return HTMLResponse(content="Not Found", status_code=404)
     
     # Validation: model should exist in current provider's list
-    provider = chats[conv_id].get("provider", "aimlapi")
+    provider = chats[conv_id].get("provider", "groq")
     if data.model not in PROVIDERS_CONFIG[provider]["available_models"]:
          return HTMLResponse(content="Invalid Model", status_code=400)
 
