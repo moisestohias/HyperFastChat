@@ -55,3 +55,29 @@ This document outlines critical failures encountered during the implementation o
 - **Rule**: Every line in a Hyperscript block must begin with a valid command (e.g., `add`, `remove`, `focus`, `call`).
 - **How to Fix**: Use the structured `focus()` command: `focus() on #selector`.
 
+## 8. Multi-Token Selectors & Selector Ambiguity
+**Mistake**: Using space-separated descendant selectors directly in commands like `add`, `remove`, or `toggle`.
+- **Example of Failure**: `remove .hidden from closest .message-container .message-actions`
+- **Result**: `Unexpected Token: .message-actions` (The parser fails at the space).
+- **Rule**: Avoid multi-token (ancestor/descendant) space-separated selectors in commands. Hyperscript expects a single target reference.
+- **How to Fix**: Use explicit scoping keywords to find descendants:
+  - Use the `in` keyword: `remove .hidden from <.message-actions/> in #message-id`
+  - Use relative navigation: `add .hidden to my parentElement`
+
+## 9. Native DOM Methods & The `call` Keyword
+**Mistake**: Invoking native JavaScript DOM methods (like `scrollIntoView`, `getBoundingClientRect`, `scrollTo`) as if they were Hyperscript commands.
+- **Example of Failure**: `wait 10ms then scrollIntoView({behavior:'smooth'})`
+- **Result**: `'scrollIntoView' is null` (Interpreted as an undefined local variable).
+- **Rule**: Any native DOM method not natively handled as a command **MUST** be invoked via the `call` keyword and prefixed with an element reference (`me` or `my`).
+- **How to Fix**: 
+  - `call my.scrollIntoView({behavior:'smooth'})`
+  - `call <.target/>.getBoundingClientRect()`
+
+## 10. Tailwind Slash Notation (Opacity/Spacing)
+**Mistake**: Using Tailwind classes that contain slashes (e.g., `.bg-zinc-700/50` or `.p-2/5`) within Hyperscript's shorthand dot notation.
+- **Example of Failure**: `add .bg-zinc-700/50 to me`
+- **Result**: `Unexpected Token: /` (The parser treats `/` as a mathematical operator, not part of the class name).
+- **Rule**: **NEVER** use dot notation for classes containing slashes. 
+- **How to Fix**:
+  1. Use the `class` keyword with quotes: `add class 'bg-zinc-700/50' to me`.
+  2. Better: Avoid slashes in manipulated classes by using a solid color class or a custom CSS abstraction (e.g., `add .bg-zinc-700 to me`).

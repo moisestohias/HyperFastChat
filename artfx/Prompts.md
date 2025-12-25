@@ -130,3 +130,9 @@ the current behavior is to automatically redirect and create a new conversation,
 ---
 Update the app to implement a collapsible sidebar that persists and displays all saved conversations. Each conversation should only be created—and its UUID added to the URL—after the user sends their first message. Until then, the interface should display an empty conversation state without redirecting or creating a new session. 
 Once the first message is sent, append the new conversation to the sidebar using `hx-swap="beforeend"`, with its title derived from the first few words of the user’s message (ensuring no empty entries are added). Clicking any conversation in the sidebar must instantly load its content into the main chat window using `hx-swap="innerHTML"`.
+
+===
+
+write a plan for implementing the Edit functionality when the user clicks the Edit button. It allows him to edit the message content.
+
+Create a detailed implementation plan for enabling message editing when the user clicks an Edit button, input handling, message modification logic, and saving changes.

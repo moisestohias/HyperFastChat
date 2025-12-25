@@ -2,11 +2,12 @@
 {% for msg in history %}
 {% if loop.last and msg.role == 'assistant' and msg.get('status') == 'streaming' %}
 {# If the last message was interrupted during streaming, auto-resume #}
-{% with message=msg.content %}
+{% with message=msg.content, msg_index=loop.index0, conversation_id=conversation_id %}
 {% include "chat_stream.html" %}
 {% endwith %}
 {% else %}
-{% with sender='user' if msg.role == 'user' else 'bot', message=msg.content, files=msg.get('files', []) %}
+{% with sender='user' if msg.role == 'user' else 'bot', message=msg.content, files=msg.get('files', []),
+msg_index=loop.index0, conversation_id=conversation_id %}
 {% include "chat_response.html" %}
 {% endwith %}
 {% endif %}

@@ -15,7 +15,7 @@
         <!-- Edit Mode: Inline Input -->
         <input type="text" name="title" id="rename-input-{{ conv_id }}" value="{{ title }}"
             class="hidden w-full bg-zinc-800 text-sm text-white px-2 py-0.5 rounded border border-blue-500 outline-none"
-            hx-patch="/chat/{{ conv_id }}" hx-trigger="keyup[key=='Enter']" hx-target="#title-btn-{{ conv_id }}"
+            hx-patch="/chat/{{ conv_id }}/rename" hx-trigger="keyup[key=='Enter']" hx-target="#title-btn-{{ conv_id }}"
             hx-swap="innerHTML" hx-ext="json-enc" _="on keyup[key=='Escape'] or blur
                  if not #title-btn-{{ conv_id }}.classList.contains('hidden') halt end
                  add .hidden to me

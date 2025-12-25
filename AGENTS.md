@@ -10,6 +10,7 @@ The application provides a modern, dark-themed chat interface where users can:
 - **Files**: Upload and preview **multiple files** (images, PDFs) simultaneously.
 - **Sidebar**: Manage persistent conversations via a collapsible sidebar with real-time history updates.
 - **Management**: Interact with conversations through actions like **Delete** and **Rename** (with auto-truncation to 10 words).
+- **Model Selection**: Switch between multiple LLMs (Gemini, GPT, Claude) via a top-right dropdown, with selection persistence across messages and sessions.
 - **SPA Experience**: Navigate between chats instantly without full page reloads using HTMX partial updates.
 - **Message Actions**: **Copy** (message & code blocks), **Edit**, **Regenerate**, and **Feedback** (Thumbs Up/Down).
 
@@ -30,6 +31,10 @@ Recent development has introduced a resilient streaming architecture and a compr
 5. **Rendering Pipeline**: 
    - Moved all Markdown, LaTeX, and Syntax Highlighting logic into `static/render.js`.
    - Uses `renderMessageStreaming(el)` for live updates and `renderMessage(el)` for final rendering.
+6. **Model Selection & Persistence**:
+   - Implemented a model selection dropdown (`model_dropdown.html`) in the top-right header.
+   - **Pre-Conversation Selection**: Users can select a model on the landing page before starting a chat; this choice is stored in `localStorage` and sent with the first message.
+   - **Dynamic Switching**: Existing conversations can have their model updated via a `PATCH` request, which is reflected immediately in the UI and subsequent bot responses.
 
 ## File Structure
 ```
@@ -47,6 +52,7 @@ clean/
     ├── chat_input_field.html # Multi-file input form & Hyperscript handling
     ├── chat_response.html # Static message partial (User/Bot styling)
     ├── chat_stream.html # SSE-backed streaming partial for live bot responses
+    ├── model_dropdown.html # LLM selection menu and logic
     └── index.html       # Landing page (Initial state & redirection logic)
 ```
 
@@ -65,6 +71,7 @@ clean/
 4. **Hyperscript & Data Attributes**: Store multi-line data in `data-message="{{ ... }}"` and access via `my.dataset.message` in Hyperscript.
 5. **Horizontal Overflow**: Ensure `pre`, `code`, and `.katex-display` use `overflow-x: auto`.
 6. **Rename Feature**: Use `hx-ext="json-enc"` for PATCH requests to the `/chat/{conv_id}` endpoint.
+7. **Hyperscript Slashes**: Never use dot notation for Tailwind classes with slashes (e.g., `.bg-black/50`). Use `class '...'` syntax instead to avoid parser errors.
 
 ---
 
