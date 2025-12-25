@@ -174,3 +174,43 @@ body {
 .katex-display>.katex {
     white-space: normal;
 }
+
+/* Sidebar Specifics */
+.sidebar-w-expanded {
+    width: 260px;
+}
+
+.sidebar-w-collapsed {
+    width: 0;
+}
+
+#sidebar {
+    background-color: #0d0d0d;
+}
+
+#sidebar-content {
+    transition: opacity 0.2s ease-in-out;
+}
+
+/* Context Menu */
+.context-menu {
+    animation: fadeInScale 0.15s ease-out;
+    transform-origin: top right;
+}
+
+@keyframes fadeInScale {
+    from {
+        opacity: 0;
+        transform: scale(0.95);
+    }
+
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+/* Cursor for sidebar items */
+.cursor-context-menu {
+    cursor: default;
+}

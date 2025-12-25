@@ -112,3 +112,21 @@ Do not make UI changes use, just implement the feature request here
 The Markdown formatting fails to render properly during generation, appearing as a single, continuous line of text. Proper rendering only occurs after the page is reloaded. Additionally, if the page is reloaded while generation is in progress, the process is interrupted and stops prematurely.
 
 Refactor the `send_message` function to delegate the Mock bot response logic to a separate function. This new function should introduce a 1-second delay using sleep and then dispatch an update to the UI. Ensure clean separation of concerns and maintain clear, maintainable code structure.
+
+===
+
+Update the app to add sidebar to save previous conversation, where any new conversation is added immediately to the sidebar. 
+When the user click on any of the conversation, its content should be load immediately in the main chat window.
+The sidebar should be collapsible. 
+
+---
+
+Update the app to add a collapsible sidebar, to saves and displays all previous conversations. Each new conversation should be added to the sidebar in immediately using hx-swap="beforeend". Clicking any conversation in the sidebar must instantly load its content into the main chat window hx-swap="innerHTML".
+For each conversation entry it should have the name of the first few word from the user prompt meaning, meaning can't add empty conversations to the sidebar
+
+Here's what needs to be changed
+the current behavior is to automatically redirect and create a new conversation, this should changed to display empty conversation, and only create a conversation and push the UUID to the URL after the use send the first message 
+
+---
+Update the app to implement a collapsible sidebar that persists and displays all saved conversations. Each conversation should only be created—and its UUID added to the URL—after the user sends their first message. Until then, the interface should display an empty conversation state without redirecting or creating a new session. 
+Once the first message is sent, append the new conversation to the sidebar using `hx-swap="beforeend"`, with its title derived from the first few words of the user’s message (ensuring no empty entries are added). Clicking any conversation in the sidebar must instantly load its content into the main chat window using `hx-swap="innerHTML"`.

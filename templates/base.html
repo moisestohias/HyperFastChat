@@ -7,6 +7,7 @@
     <title>{% block title %}Chat UI{% endblock %}</title>
     <script src="https://unpkg.com/htmx.org@1.9.10"></script>
     <script src="https://unpkg.com/htmx.org@1.9.10/dist/ext/sse.js"></script>
+    <script src="https://unpkg.com/htmx.org@1.9.10/dist/ext/json-enc.js"></script>
     <script src="https://unpkg.com/hyperscript.org@0.9.12"></script>
     <script src="https://cdn.tailwindcss.com"></script>
 
@@ -29,8 +30,33 @@
     {% block head %}{% endblock %}
 </head>
 
-<body class="bg-gray-900 h-full flex flex-col">
-    {% block content %}{% endblock %}
+<body class="bg-zinc-900 h-full flex overflow-hidden">
+    <!-- Sidebar -->
+    <div id="sidebar-container" hx-get="/sidebar?current_id={{ conversation_id }}" hx-trigger="load" hx-target="this"
+        hx-swap="outerHTML">
+        <div class="sidebar-w-expanded h-screen bg-[#0d0d0d] animate-pulse"></div>
+    </div>
+
+    <!-- Toggle Button (Persistent) -->
+    <button id="sidebar-toggle"
+        class="fixed top-4 left-4 z-50 p-2 rounded-lg bg-zinc-800/50 backdrop-blur-md text-gray-400 hover:text-white border border-gray-700 hover:border-gray-500 transition-all shadow-lg"
+        _="on click 
+               if #sidebar.classList.contains('sidebar-w-collapsed')
+                 remove .sidebar-w-collapsed from #sidebar then add .sidebar-w-expanded to #sidebar
+                 send expanded to #sidebar-content
+                 set localStorage.sidebarStatus to 'expanded'
+               else
+                 remove .sidebar-w-expanded from #sidebar then add .sidebar-w-collapsed to #sidebar
+                 send collapsed to #sidebar-content
+                 set localStorage.sidebarStatus to 'collapsed'">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+        </svg>
+    </button>
+
+    <main class="flex-1 flex flex-col h-screen overflow-hidden">
+        {% block content %}{% endblock %}
+    </main>
 </body>
 
 </html>

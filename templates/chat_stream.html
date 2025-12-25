@@ -2,7 +2,7 @@
 <!-- Uses native EventSource for reliable streaming with Markdown rendering -->
 <div id="stream-container-{{ stream_id }}" class="flex flex-col gap-2 mb-4 items-start">
 
-    <div class="max-w-[80%] bg-gray-800 text-gray-100 rounded-t-2xl rounded-br-2xl p-2 shadow-md">
+    <div class="max-w-[80%] bg-zinc-900 text-zinc-100 rounded-t-2xl rounded-br-2xl p-2">
         <!-- Streaming content target -->
         <div id="stream-content-{{ stream_id }}" class="text-sm leading-relaxed markdown-content">
             {{ message if message else '' }}<span class="stream-cursor animate-pulse text-blue-400">▋</span>

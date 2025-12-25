@@ -30,7 +30,12 @@ class MessageForm:
 
 @app.get("/", response_class=HTMLResponse)
 async def read_root(request: Request):
-    return RedirectResponse(url=f"/chat/{uuid.uuid4()}", status_code=303)
+    return templates.TemplateResponse("index.html", {
+        "request": request, 
+        "conversation_id": "new",
+        "history": [],
+        "stream_id": str(uuid.uuid4())[:8]
+    })
 
 @app.get("/chat/{conv_id}", response_class=HTMLResponse)
 async def get_chat(request: Request, conv_id: str):
@@ -63,7 +68,26 @@ async def get_chat(request: Request, conv_id: str):
 
 @app.post("/chat/{conv_id}/send-message")
 async def send_message(request: Request, conv_id: str, form_data: Annotated[MessageForm, Depends()]):
-    if conv_id not in chats:
+    is_new = False
+    actual_conv_id = conv_id
+    
+    if conv_id == "new":
+        is_new = True
+        actual_conv_id = str(uuid.uuid4())
+        # Generate title from first few words
+        title = " ".join(form_data.message.split()[:5])
+        if len(form_data.message.split()) > 5:
+            title += "..."
+        
+        chats[actual_conv_id] = {
+            "title": title,
+            "model": "model-name",
+            "messages": [
+                {"role": "system", "content": "You are a helpful assistant."}
+            ]
+        }
+
+    if actual_conv_id not in chats:
         return HTMLResponse(content="Conversation not found", status_code=404)
 
     import base64
@@ -82,15 +106,14 @@ async def send_message(request: Request, conv_id: str, form_data: Annotated[Mess
                 "url": url
             })
     
-    # Update conversation history with user message and files
-    chats[conv_id]["messages"].append({
+    # Update conversation history
+    chats[actual_conv_id]["messages"].append({
         "role": "user",
         "content": form_data.message,
         "files": processed_files
     })
 
-    # Add a placeholder assistant message that will be updated during streaming
-    chats[conv_id]["messages"].append({
+    chats[actual_conv_id]["messages"].append({
         "role": "assistant",
         "content": "",
         "status": "streaming"
@@ -104,20 +127,33 @@ async def send_message(request: Request, conv_id: str, form_data: Annotated[Mess
         "files": processed_files
     })
     
-    # Generate a unique stream ID for this response
     stream_id = str(uuid.uuid4())[:8]
     
-    # Return user message and the streaming bot trigger
+    # Render streaming bot placeholder
     bot_trigger_html = templates.get_template("chat_stream.html").render({
         "request": request,
-        "conversation_id": conv_id,
+        "conversation_id": actual_conv_id,
         "stream_id": stream_id
     })
     
-    # Start the generation in the background so it's not tied to this request or the next SSE request
-    asyncio.create_task(run_chatbot_logic(conv_id))
+    asyncio.create_task(run_chatbot_logic(actual_conv_id))
     
-    return HTMLResponse(content=user_html + bot_trigger_html)
+    response_content = user_html + bot_trigger_html
+    headers = {}
+    
+    if is_new:
+        # Push new URL and trigger sidebar update
+        headers["HX-Push-Url"] = f"/chat/{actual_conv_id}"
+        sidebar_item_html = templates.get_template("sidebar_item.html").render({
+            "request": request,
+            "conv_id": actual_conv_id,
+            "title": chats[actual_conv_id]["title"],
+            "active": True
+        })
+        # We'll use hx-swap-oob to prepend the new conversation to the sidebar list
+        response_content += f'<div id="sidebar-list" hx-swap-oob="afterbegin">{sidebar_item_html}</div>'
+    
+    return HTMLResponse(content=response_content, headers=headers)
 
 async def run_chatbot_logic(conv_id: str):
     """
@@ -211,29 +247,57 @@ async def bot_stream(request: Request, conv_id: str):
     )
 
 
-@app.get("/chat/{conv_id}/bot-response")
-async def bot_response(request: Request, conv_id: str):
-    """Legacy non-streaming endpoint (kept for compatibility)."""
+@app.get("/chat/{conv_id}/history", response_class=HTMLResponse)
+async def get_chat_history(request: Request, conv_id: str):
+    """Returns only the chat history partial for HTMX SPA navigation."""
     if conv_id not in chats:
         return HTMLResponse(content="Conversation not found", status_code=404)
     
-    # Find the last message from user to echo it
-    messages = chats[conv_id]["messages"]
-    user_message = next((m["content"] for m in reversed(messages) if m["role"] == "user"), "Hello!")
+    ui_messages = [msg for msg in chats[conv_id]["messages"] if msg["role"] != "system"]
     
-    await asyncio.sleep(0.5)
-    
-    bot_message = user_message
-    
-    # Update conversation history
-    chats[conv_id]["messages"].append({
-        "role": "assistant",
-        "content": bot_message
+    history_html = templates.get_template("chat_history_list.html").render({
+        "request": request,
+        "history": ui_messages,
     })
 
-    return templates.TemplateResponse("chat_response.html", {
+    
+    input_field_html = templates.get_template("chat_input_field.html").render({
         "request": request,
-        "sender": "bot",
-        "message": bot_message,
-        "timestamp": "Bot Response"
+        "conversation_id": conv_id
+    })
+    
+    return HTMLResponse(content=history_html + f'<div id="chat-form-container" hx-swap-oob="innerHTML">{input_field_html}</div>')
+
+@app.delete("/chat/{conv_id}")
+async def delete_chat(conv_id: str):
+    if conv_id in chats:
+        del chats[conv_id]
+    return HTMLResponse(content="")
+
+from pydantic import BaseModel
+
+class RenameModel(BaseModel):
+    title: str
+
+@app.patch("/chat/{conv_id}", response_class=HTMLResponse)
+async def rename_chat(conv_id: str, data: RenameModel):
+    if conv_id not in chats:
+        return HTMLResponse(content="Not Found", status_code=404)
+    
+    # Truncate to 10 words
+    words = data.title.split()
+    new_title = " ".join(words[:10])
+    if len(words) > 10:
+        new_title += "..."
+        
+    chats[conv_id]["title"] = new_title
+    return HTMLResponse(content=new_title)
+
+@app.get("/sidebar", response_class=HTMLResponse)
+async def get_sidebar(request: Request, current_id: str = None):
+    conv_list = [{"id": cid, "title": data.get("title", "Untitled")} for cid, data in reversed(list(chats.items()))]
+    return templates.TemplateResponse("sidebar.html", {
+        "request": request,
+        "conversations": conv_list,
+        "current_id": current_id
     })

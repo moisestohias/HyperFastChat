@@ -1,0 +1,48 @@
+<aside id="sidebar"
+    class="h-screen bg-[#0d0d0d] flex-shrink-0 flex flex-col border-r border-gray-800 transition-all duration-300 ease-in-out relative z-40 {{ 'sidebar-w-expanded' if not collapsed else 'sidebar-w-collapsed' }}"
+    _="on load 
+          if localStorage.sidebarStatus is 'collapsed' 
+            add .sidebar-w-collapsed to me 
+            remove .sidebar-w-expanded from me
+            send collapsed to #sidebar-content">
+
+    <div id="sidebar-content"
+        class="h-full flex flex-col overflow-hidden {{ 'opacity-0 pointer-events-none' if collapsed else 'opacity-100' }}"
+        _="on collapsed 
+            add .opacity-0 .pointer-events-none to me 
+            remove .opacity-100 from me
+          on expanded 
+            add .opacity-100 to me 
+            remove .opacity-0 .pointer-events-none from me">
+
+        <!-- Top Section -->
+        <div class="p-3">
+            <a href="/"
+                class="flex items-center gap-3 w-full px-3 py-3 rounded-xl border border-gray-800 hover:bg-gray-800/50 transition-all text-gray-200 group">
+                <svg class="w-5 h-5 text-gray-400 group-hover:text-blue-400" fill="none" stroke="currentColor"
+                    viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                </svg>
+                <span class="text-sm font-medium">New Chat</span>
+            </a>
+        </div>
+
+        <!-- Middle Section (30% placeholder) -->
+        <div class="h-[30%] flex flex-col px-3 gap-2 opacity-50 select-none">
+            <div class="text-[10px] font-bold text-gray-500 uppercase tracking-widest px-3 mt-4">Library</div>
+            <div class="px-3 py-2 text-xs text-gray-600 italic">Folders & Projects coming soon...</div>
+        </div>
+
+        <!-- Bottom Section: Conversations -->
+        <div class="flex-1 flex flex-col overflow-hidden">
+            <div class="text-[10px] font-bold text-gray-500 uppercase tracking-widest px-6 mb-2">Recent</div>
+            <div id="sidebar-list" class="flex-1 overflow-y-auto px-3 space-y-1 custom-scrollbar">
+                {% for conv in conversations %}
+                {% with conv_id=conv.id, title=conv.title, active=(current_id == conv.id) %}
+                {% include "sidebar_item.html" %}
+                {% endwith %}
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</aside>
