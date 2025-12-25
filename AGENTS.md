@@ -1,4 +1,4 @@
-# Comprehensive Context Document: Enhanced Chat Application
+# Comprehensive Context Document: HyperFastChat
 
 ## Project Overview
 This is a lightweight yet feature-rich chat application built with **FastAPI**, **HTMX**, and **Hyperscript**. It supports multi-file uploads, real-time Markdown rendering with LaTeX support, and a robust background-streaming architecture that persists across page reloads. The application features a persistent, collapsible sidebar for conversation history and management.
