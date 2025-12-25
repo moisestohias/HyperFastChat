@@ -10,7 +10,7 @@ The application provides a modern, dark-themed chat interface where users can:
 - **Files**: Upload and preview **multiple files** (images, PDFs) simultaneously.
 - **Sidebar**: Manage persistent conversations via a collapsible sidebar with real-time history updates.
 - **Management**: Interact with conversations through actions like **Delete** and **Rename** (with auto-truncation to 10 words).
-- **Model Selection**: Switch between multiple LLMs (Gemini, GPT, Claude) via a top-right dropdown, with selection persistence across messages and sessions.
+- **Model Selection**: Switch between multiple LLMs (llama, Qwen, ..) via a top-right dropdown, with selection persistence across messages and sessions.
 - **SPA Experience**: Navigate between chats instantly without full page reloads using HTMX partial updates.
 - **Message Actions**: **Copy** (message & code blocks), **Edit**, **Regenerate**, and **Feedback** (Thumbs Up/Down).
 

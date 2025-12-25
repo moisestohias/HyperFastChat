@@ -24,6 +24,8 @@ def load_providers_config():
         return json.load(f)
 
 PROVIDERS_CONFIG = load_providers_config()
+default_provider = list(PROVIDERS_CONFIG.keys())[1] # groq
+default_model = PROVIDERS_CONFIG[default_provider]["default_model"]
 
 # A class to acts like a Pydantic model but works with Forms
 class MessageForm:
@@ -31,8 +33,8 @@ class MessageForm:
         self,
         message: str = Form(...),
         files: list[UploadFile] = File(default=[]),
-        provider: str = Form("groq"),
-        model: str = Form("deepseek/deepseek-prover-v2")
+        provider: str = Form(default_provider),
+        model: str = Form(default_model)
     ):
         self.message = message
         self.files = files
@@ -41,26 +43,24 @@ class MessageForm:
 
 @app.get("/", response_class=HTMLResponse)
 async def read_root(request: Request):
-    default_p = "groq"
     return templates.TemplateResponse("index.html", {
         "request": request, 
         "conversation_id": "new",
         "history": [],
         "stream_id": str(uuid.uuid4())[:8],
         "providers_config": PROVIDERS_CONFIG,
-        "current_provider": default_p,
-        "current_model": PROVIDERS_CONFIG[default_p]["default_model"]
+        "current_provider": default_provider,
+        "current_model": PROVIDERS_CONFIG[default_provider]["default_model"]
     })
 
 @app.get("/chat/{conv_id}", response_class=HTMLResponse)
 async def get_chat(request: Request, conv_id: str):
     # Initialize conversation if it doesn't exist
     if conv_id not in chats:
-        default_p = "groq"
         chats[conv_id] = {
             "title": "Untitled",
-            "provider": default_p,
-            "model": PROVIDERS_CONFIG[default_p]["default_model"],
+            "provider": default_provider,
+            "model": PROVIDERS_CONFIG[default_provider]["default_model"],
             "messages": [
                 {
                     "role": "system",
@@ -78,7 +78,7 @@ async def get_chat(request: Request, conv_id: str):
         "history": ui_messages,
         "stream_id": str(uuid.uuid4())[:8],
         "providers_config": PROVIDERS_CONFIG,
-        "current_provider": chats[conv_id].get("provider", "groq"),
+        "current_provider": chats[conv_id].get("provider", default_provider),
         "current_model": chats[conv_id].get("model", "")
     })
 
@@ -196,7 +196,7 @@ async def run_chatbot_logic(conv_id: str):
         return
 
     # Simulation setup
-    provider_name = chats[conv_id].get("provider", "groq")
+    provider_name = chats[conv_id].get("provider", default_provider)
     model_name = chats[conv_id].get("model")
     
     try:
@@ -332,7 +332,7 @@ async def get_chat_history(request: Request, conv_id: str):
     input_field_html = templates.get_template("chat_input_field.html").render({
         "request": request,
         "conversation_id": conv_id,
-        "current_provider": chats[conv_id].get("provider", "groq"),
+        "current_provider": chats[conv_id].get("provider", default_provider),
         "current_model": chats[conv_id].get("model", "")
     })
 
@@ -340,7 +340,7 @@ async def get_chat_history(request: Request, conv_id: str):
         "request": request,
         "conversation_id": conv_id,
         "providers_config": PROVIDERS_CONFIG,
-        "current_provider": chats[conv_id].get("provider", "groq"),
+        "current_provider": chats[conv_id].get("provider", default_provider),
         "current_model": chats[conv_id].get("model", "")
     })
     
@@ -422,7 +422,7 @@ async def set_model(request: Request, conv_id: str, data: SetModelModel):
         return HTMLResponse(content="Not Found", status_code=404)
     
     # Validation: model should exist in current provider's list
-    provider = chats[conv_id].get("provider", "groq")
+    provider = chats[conv_id].get("provider", default_provider)
     if data.model not in PROVIDERS_CONFIG[provider]["available_models"]:
          return HTMLResponse(content="Invalid Model", status_code=400)
 
