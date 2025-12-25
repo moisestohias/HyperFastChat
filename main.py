@@ -18,12 +18,11 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 # In-memory storage for conversations
 chats = {}
 
-SUPPORTED_MODELS = {
-    "gemini-1.5-flash": "Gemini 1.5 Flash",
-    "gemini-1.5-pro": "Gemini 1.5 Pro",
-    "gpt-4o": "GPT-4o",
-    "claude-3-5-sonnet": "Claude 3.5 Sonnet"
-}
+def load_providers_config():
+    with open("providers_config.json", "r") as f:
+        return json.load(f)
+
+PROVIDERS_CONFIG = load_providers_config()
 
 # A class to acts like a Pydantic model but works with Forms
 class MessageForm:
@@ -31,30 +30,36 @@ class MessageForm:
         self,
         message: str = Form(...),
         files: list[UploadFile] = File(default=[]),
-        model: str = Form("gemini-1.5-flash")
+        provider: str = Form("aimlapi"),
+        model: str = Form("deepseek/deepseek-prover-v2")
     ):
         self.message = message
         self.files = files
+        self.provider = provider
         self.model = model
 
 @app.get("/", response_class=HTMLResponse)
 async def read_root(request: Request):
+    default_p = "aimlapi"
     return templates.TemplateResponse("index.html", {
         "request": request, 
         "conversation_id": "new",
         "history": [],
         "stream_id": str(uuid.uuid4())[:8],
-        "models": SUPPORTED_MODELS,
-        "current_model": "gemini-1.5-flash"
+        "providers_config": PROVIDERS_CONFIG,
+        "current_provider": default_p,
+        "current_model": PROVIDERS_CONFIG[default_p]["default_model"]
     })
 
 @app.get("/chat/{conv_id}", response_class=HTMLResponse)
 async def get_chat(request: Request, conv_id: str):
     # Initialize conversation if it doesn't exist
     if conv_id not in chats:
+        default_p = "aimlapi"
         chats[conv_id] = {
             "title": "Untitled",
-            "model": "gemini-1.5-flash",
+            "provider": default_p,
+            "model": PROVIDERS_CONFIG[default_p]["default_model"],
             "messages": [
                 {
                     "role": "system",
@@ -71,8 +76,9 @@ async def get_chat(request: Request, conv_id: str):
         "conversation_id": conv_id,
         "history": ui_messages,
         "stream_id": str(uuid.uuid4())[:8],
-        "models": SUPPORTED_MODELS,
-        "current_model": chats[conv_id].get("model", "gemini-1.5-flash")
+        "providers_config": PROVIDERS_CONFIG,
+        "current_provider": chats[conv_id].get("provider", "aimlapi"),
+        "current_model": chats[conv_id].get("model", "")
     })
 
 @app.post("/chat/{conv_id}/send-message")
@@ -90,6 +96,7 @@ async def send_message(request: Request, conv_id: str, form_data: Annotated[Mess
         
         chats[actual_conv_id] = {
             "title": title,
+            "provider": form_data.provider,
             "model": form_data.model,
             "messages": [
                 {"role": "system", "content": "You are a helpful assistant."}
@@ -185,8 +192,9 @@ async def run_chatbot_logic(conv_id: str):
     user_message = next((m["content"] for m in reversed(messages) if m["role"] == "user"), "Hello!")
     
     # Simulate generation
-    model_name = SUPPORTED_MODELS.get(chats[conv_id].get("model"), "Unknown Model")
-    full_response = f"[{model_name}] {user_message}"
+    provider = chats[conv_id].get("provider", "unknown")
+    model = chats[conv_id].get("model", "unknown")
+    full_response = f"[{provider} | {model}] {user_message}"
     accumulated = ""
     tokens = full_response.split(" ")
     
@@ -298,14 +306,16 @@ async def get_chat_history(request: Request, conv_id: str):
     input_field_html = templates.get_template("chat_input_field.html").render({
         "request": request,
         "conversation_id": conv_id,
-        "current_model": chats[conv_id].get("model", "gemini-1.5-flash")
+        "current_provider": chats[conv_id].get("provider", "aimlapi"),
+        "current_model": chats[conv_id].get("model", "")
     })
 
     model_dropdown_html = templates.get_template("model_dropdown.html").render({
         "request": request,
         "conversation_id": conv_id,
-        "models": SUPPORTED_MODELS,
-        "current_model": chats[conv_id].get("model", "gemini-1.5-flash")
+        "providers_config": PROVIDERS_CONFIG,
+        "current_provider": chats[conv_id].get("provider", "aimlapi"),
+        "current_model": chats[conv_id].get("model", "")
     })
     
     return HTMLResponse(content=history_html + f'<div id="chat-form-container" hx-swap-oob="innerHTML">{input_field_html}</div>' + f'<div id="model-dropdown-container" hx-swap-oob="innerHTML">{model_dropdown_html}</div>')
@@ -327,6 +337,25 @@ class EditMessageModel(BaseModel):
 class SetModelModel(BaseModel):
     model: str
 
+class SetProviderModel(BaseModel):
+    provider: str
+
+@app.get("/partials/model-options", response_class=HTMLResponse)
+async def get_model_options(request: Request, provider: str, current_model: str = None):
+    if provider not in PROVIDERS_CONFIG:
+        return HTMLResponse(content="Invalid Provider", status_code=400)
+    
+    models = PROVIDERS_CONFIG[provider]["available_models"]
+    
+    # We create a simple list of buttons for the model dropdown
+    # This is used by the New Chat state to refresh options
+    return templates.TemplateResponse("model_options_list.html", {
+        "request": request,
+        "models": models,
+        "current_model": current_model,
+        "conversation_id": "new" 
+    })
+
 @app.patch("/chat/{conv_id}/rename", response_class=HTMLResponse)
 async def rename_chat(conv_id: str, data: RenameModel):
     if conv_id not in chats:
@@ -341,21 +370,43 @@ async def rename_chat(conv_id: str, data: RenameModel):
     chats[conv_id]["title"] = new_title
     return HTMLResponse(content=new_title)
 
+@app.patch("/chat/{conv_id}/provider", response_class=HTMLResponse)
+async def set_provider(request: Request, conv_id: str, data: SetProviderModel):
+    if conv_id not in chats:
+        return HTMLResponse(content="Not Found", status_code=404)
+    
+    if data.provider not in PROVIDERS_CONFIG:
+        return HTMLResponse(content="Invalid Provider", status_code=400)
+    
+    chats[conv_id]["provider"] = data.provider
+    # Reset to default model for this provider
+    chats[conv_id]["model"] = PROVIDERS_CONFIG[data.provider]["default_model"]
+    
+    return templates.TemplateResponse("model_dropdown.html", {
+        "request": request,
+        "conversation_id": conv_id,
+        "providers_config": PROVIDERS_CONFIG,
+        "current_provider": chats[conv_id]["provider"],
+        "current_model": chats[conv_id]["model"]
+    })
+
 @app.patch("/chat/{conv_id}/model", response_class=HTMLResponse)
 async def set_model(request: Request, conv_id: str, data: SetModelModel):
     if conv_id not in chats:
         return HTMLResponse(content="Not Found", status_code=404)
     
-    if data.model not in SUPPORTED_MODELS:
-        return HTMLResponse(content="Invalid Model", status_code=400)
-    
+    # Validation: model should exist in current provider's list
+    provider = chats[conv_id].get("provider", "aimlapi")
+    if data.model not in PROVIDERS_CONFIG[provider]["available_models"]:
+         return HTMLResponse(content="Invalid Model", status_code=400)
+
     chats[conv_id]["model"] = data.model
     
-    # Return the updated dropdown partial
     return templates.TemplateResponse("model_dropdown.html", {
         "request": request,
         "conversation_id": conv_id,
-        "models": SUPPORTED_MODELS,
+        "providers_config": PROVIDERS_CONFIG,
+        "current_provider": provider,
         "current_model": data.model
     })
 

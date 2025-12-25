@@ -1,68 +1,114 @@
-<div id="model-dropdown" class="relative inline-block text-left" _="on click elsewhere add .hidden to #model-menu">
-    <button type="button"
-        class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-zinc-800/50 backdrop-blur-md text-gray-300 hover:text-white border border-gray-700 hover:border-gray-500 transition-all shadow-lg text-sm font-medium"
-        id="model-menu-button" _="on click toggle .hidden on #model-menu">
-        <span>{{ models[current_model] }}</span>
-        <svg class="w-4 h-4 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-        </svg>
-    </button>
+<div id="model-dropdown" class="flex items-center gap-2">
+    <!-- Provider Dropdown -->
+    <div class="relative inline-block text-left" _="on click elsewhere add .hidden to #provider-menu">
+        <button type="button"
+            class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-zinc-800/50 backdrop-blur-md text-gray-300 hover:text-white border border-gray-700 hover:border-gray-500 transition-all shadow-lg text-sm font-medium"
+            id="provider-menu-button" _="on click toggle .hidden on #provider-menu">
+            <span id="provider-btn-span">{{ providers_config[current_provider].name }}</span>
+            <svg class="w-4 h-4 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+            </svg>
+        </button>
 
-    <div id="model-menu"
-        class="hidden absolute right-0 mt-2 w-48 origin-top-right rounded-xl bg-zinc-800 border border-gray-700 shadow-2xl z-50 overflow-hidden context-menu"
-        role="menu">
-        <div class="py-1" role="none">
-            {% for model_id, model_name in models.items() %}
-            <button
-                class="w-full text-left px-4 py-2 text-sm {% if model_id == current_model %}text-blue-400 bg-zinc-700{% else %}text-gray-300 hover:bg-zinc-700 hover:text-white{% endif %} transition-colors flex items-center justify-between"
-                role="menuitem" {% if conversation_id=="new" %} _="on click 
-                    set #selected-model-input.value to '{{ model_id }}'
-                    set localStorage.lastSelectedModel to '{{ model_id }}'
-                    put '{{ model_name }}' into #model-menu-button.querySelector('span')
-                    add .hidden to #model-menu
-                    take .text-blue-400 from .text-blue-400 in #model-menu
-                    take .bg-zinc-700 from .bg-zinc-700 in #model-menu
-                    add .text-blue-400 to me
-                    add .bg-zinc-700 to me" {% else %} hx-patch="/chat/{{ conversation_id }}/model" hx-ext="json-enc"
-                hx-vals='{"model": "{{ model_id }}"}' hx-target="#model-dropdown-container" hx-swap="innerHTML" {% endif
-                %}>
-                {{ model_name }}
-                {% if model_id == current_model %}
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-                </svg>
+        <div id="provider-menu"
+            class="hidden absolute left-0 mt-2 w-48 origin-top-left rounded-xl bg-zinc-800 border border-gray-700 shadow-2xl z-50 overflow-hidden context-menu"
+            role="menu">
+            <div class="py-1" role="none">
+                {% for p_id, p_config in providers_config.items() %}
+                <button
+                    class="w-full text-left px-4 py-2 text-sm {% if p_id == current_provider %}text-blue-400 bg-zinc-700{% else %}text-gray-300 hover:bg-zinc-700 hover:text-white{% endif %} transition-colors flex items-center justify-between"
+                    role="menuitem" {% if conversation_id=="new" %} hx-get="/partials/model-options?provider={{ p_id }}"
+                    hx-target="#model-list-container" _="on click 
+                        add .hidden to #provider-menu
+                        set #selected-provider-input.value to '{{ p_id }}'
+                        set localStorage.lastSelectedProvider to '{{ p_id }}'
+                        put '{{ p_config.name }}' into #provider-btn-span
+                        -- Auto-select the first model of this provider
+                        wait 50ms then
+                        -- We trigger a click on the first model in the loaded list
+                        trigger click on #model-list-container.firstElementChild
+                        " {% else %} hx-patch="/chat/{{ conversation_id }}/provider" hx-ext="json-enc"
+                    hx-vals='{"provider": "{{ p_id }}"}' hx-target="#model-dropdown-container" hx-swap="innerHTML" {%
+                    endif %}>
+                    {{ p_config.name }}
+                    {% if p_id == current_provider %}
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                    {% endif %}
+                </button>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Model Dropdown -->
+    <div class="relative inline-block text-left" _="on click elsewhere add .hidden to #model-menu">
+        <button type="button"
+            class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-zinc-800/50 backdrop-blur-md text-gray-300 hover:text-white border border-gray-700 hover:border-gray-500 transition-all shadow-lg text-sm font-medium"
+            id="model-menu-button" _="on click toggle .hidden on #model-menu">
+            <span id="model-btn-span">{{ current_model }}</span>
+            <svg class="w-4 h-4 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+            </svg>
+        </button>
+
+        <div id="model-menu"
+            class="hidden absolute right-0 mt-2 w-64 origin-top-right rounded-xl bg-zinc-800 border border-gray-700 shadow-2xl z-50 overflow-hidden context-menu"
+            role="menu">
+            <div class="py-1 max-h-96 overflow-y-auto custom-scrollbar" role="none" id="model-list-container">
+                {% if current_provider in providers_config %}
+                {% include "model_options_list.html" with context %}
                 {% endif %}
-            </button>
-            {% endfor %}
+            </div>
         </div>
     </div>
 </div>
 
 {% if conversation_id == "new" %}
-<div id="model-data-provider" data-models='{{ models | tojson | safe }}' class="hidden"></div>
+<div id="providers-data-provider" data-config='{{ providers_config | tojson | safe }}' class="hidden"></div>
 <script>
     (function () {
-        const lastSelectedModelId = localStorage.getItem('lastSelectedModel');
-        if (lastSelectedModelId) {
-            const hiddenInput = document.getElementById('selected-model-input');
-            if (hiddenInput) hiddenInput.value = lastSelectedModelId;
+        // Shared init logic for New Chat
+        function initializeNewChatDropdowns() {
+            const lastProvider = localStorage.getItem('lastSelectedProvider');
+            const lastModel = localStorage.getItem('lastSelectedModel');
 
-            const provider = document.getElementById('model-data-provider');
-            if (provider) {
-                const availableModels = JSON.parse(provider.dataset.models);
-                if (availableModels[lastSelectedModelId]) {
-                    const buttonSpan = document.querySelector('#model-menu-button span');
-                    if (buttonSpan) buttonSpan.textContent = availableModels[lastSelectedModelId];
+            if (lastProvider) {
+                const provInput = document.getElementById('selected-provider-input');
+                if (provInput) provInput.value = lastProvider;
 
-                    document.querySelectorAll('#model-menu button').forEach(btn => {
-                        if (btn.innerText.trim() === availableModels[lastSelectedModelId]) {
-                            btn.classList.add('text-blue-400', 'bg-zinc-700');
-                        } else {
-                            btn.classList.remove('text-blue-400', 'bg-zinc-700');
-                        }
-                    });
+                const providerBtnSpan = document.getElementById('provider-btn-span');
+                const configProvider = document.getElementById('providers-data-provider');
+                if (providerBtnSpan && configProvider) {
+                    const config = JSON.parse(configProvider.dataset.config);
+                    if (config[lastProvider]) {
+                        providerBtnSpan.textContent = config[lastProvider].name;
+
+                        // We need to fetch models for this provider
+                        // We can manually trigger htmx.ajax or just wait for the user
+                        // But for a good UX, we should load them now.
+                        htmx.ajax('GET', `/partials/model-options?provider=${lastProvider}&current_model=${lastModel || ''}`, {
+                            target: '#model-list-container',
+                            swap: 'innerHTML'
+                        }).then(() => {
+                            if (lastModel) {
+                                const modelInput = document.getElementById('selected-model-input');
+                                if (modelInput) modelInput.value = lastModel;
+                                const modelBtnSpan = document.getElementById('model-btn-span');
+                                if (modelBtnSpan) modelBtnSpan.textContent = lastModel;
+                            }
+                        });
+                    }
                 }
             }
+        }
+
+        // Run on load
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initializeNewChatDropdowns);
+        } else {
+            initializeNewChatDropdowns();
         }
     })();
 </script>

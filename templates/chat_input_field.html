@@ -10,8 +10,9 @@
     <div id="filePreview" class="px-2 pt-2 flex flex-wrap gap-2"></div>
 
     <div class="flex items-end gap-2 p-2">
-        <!-- Hidden selected model -->
-        <input type="hidden" id="selected-model-input" name="model" value="{{ current_model or 'gemini-1.5-flash' }}">
+        <!-- Hidden selected model and provider -->
+        <input type="hidden" id="selected-provider-input" name="provider" value="{{ current_provider or 'aimlapi' }}">
+        <input type="hidden" id="selected-model-input" name="model" value="{{ current_model or '' }}">
 
         <!-- Attach Button -->
         <button type="button"
