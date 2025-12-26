@@ -85,29 +85,32 @@
     eventSource.addEventListener('done', function (evt) {
         eventSource.close();
 
+        let data;
+        try {
+            data = JSON.parse(evt.data);
+        } catch (e) {
+            console.error("Failed to parse done event data", e);
+            return;
+        }
+
         // Final full render with all features
         contentEl.textContent = rawAccumulated;
         if (window.renderMessage) {
             window.renderMessage(contentEl);
         }
 
-        // Populate edit textarea
-        const editTextarea = document.getElementById('edit-textarea-{{ msg_index }}');
+        // Populate edit textarea with exact content from server
+        const editTextarea = document.getElementById('edit-textarea-' + data.msg_index);
         if (editTextarea) {
-            editTextarea.value = rawAccumulated;
+            editTextarea.value = data.content;
         }
 
-        // Show action buttons
-        try {
-            actionsEl.innerHTML = JSON.parse(evt.data);
-        } catch (e) {
-            actionsEl.innerHTML = evt.data;
+        // Render action buttons using the client-side renderer
+        if (window.renderBotActions) {
+            window.renderBotActions(actionsEl, data.conversation_id, data.msg_index, data.content);
         }
+
         actionsEl.classList.remove('hidden');
-
-        if (window._hyperscript) {
-            window._hyperscript.processNode(actionsEl);
-        }
 
         const chatMessages = document.getElementById('chat-messages');
         if (chatMessages) {
