@@ -1,5 +1,7 @@
 import uuid
 import asyncio
+import html as html_module
+import json
 
 from fastapi import FastAPI, Request, UploadFile, File, Form, Depends
 from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
@@ -7,9 +9,8 @@ from fastapi.templating import Jinja2Templates
 from typing import Annotated
 
 from fastapi.staticfiles import StaticFiles
-import html as html_module
-import json
 from LLMConnect.api_client_factory import APIClientFactory, Provider
+from pydantic import BaseModel
 
 templates = Jinja2Templates(directory="templates")
 app = FastAPI()
@@ -189,6 +190,15 @@ async def send_message(request: Request, conv_id: str, form_data: Annotated[Mess
         })
         # We'll use hx-swap-oob to prepend the new conversation to the sidebar list
         response_content += f'<div id="sidebar-list" hx-swap-oob="afterbegin">{sidebar_item_html}</div>'
+
+        # Also update the input form to point to the new conversation ID (fix for forking bug)
+        input_field_html = templates.get_template("chat_input_field.html").render({
+            "request": request,
+            "conversation_id": actual_conv_id,
+            "current_provider": chats[actual_conv_id]["provider"],
+            "current_model": chats[actual_conv_id]["model"]
+        })
+        response_content += f'<div id="chat-form-container" hx-swap-oob="innerHTML">{input_field_html}</div>'
     
     return HTMLResponse(content=response_content, headers=headers)
 
@@ -338,7 +348,6 @@ async def get_chat_history(request: Request, conv_id: str):
         "conversation_id": conv_id
     })
 
-    
     input_field_html = templates.get_template("chat_input_field.html").render({
         "request": request,
         "conversation_id": conv_id,
@@ -353,100 +362,13 @@ async def get_chat_history(request: Request, conv_id: str):
         "current_provider": chats[conv_id].get("provider", default_provider),
         "current_model": chats[conv_id].get("model", "")
     })
-    
+
     return HTMLResponse(content=history_html + f'<div id="chat-form-container" hx-swap-oob="innerHTML">{input_field_html}</div>' + f'<div id="model-dropdown-container" hx-swap-oob="innerHTML">{model_dropdown_html}</div>')
 
-@app.delete("/chat/{conv_id}")
-async def delete_chat(conv_id: str):
-    if conv_id in chats:
-        del chats[conv_id]
-        write_db_to_disk()
-    return HTMLResponse(content="")
 
-from pydantic import BaseModel
-
-class RenameModel(BaseModel):
-    title: str
 
 class EditMessageModel(BaseModel):
     content: str
-
-class SetModelModel(BaseModel):
-    model: str
-
-class SetProviderModel(BaseModel):
-    provider: str
-
-@app.get("/partials/model-options", response_class=HTMLResponse)
-async def get_model_options(request: Request, provider: str, current_model: str = None):
-    if provider not in PROVIDERS_CONFIG:
-        return HTMLResponse(content="Invalid Provider", status_code=400)
-    
-    models = PROVIDERS_CONFIG[provider]["available_models"]
-    
-    # We create a simple list of buttons for the model dropdown
-    # This is used by the New Chat state to refresh options
-    return templates.TemplateResponse("model_options_list.html", {
-        "request": request,
-        "models": models,
-        "current_model": current_model,
-        "conversation_id": "new" 
-    })
-
-@app.patch("/chat/{conv_id}/rename", response_class=HTMLResponse)
-async def rename_chat(conv_id: str, data: RenameModel):
-    if conv_id not in chats:
-        return HTMLResponse(content="Not Found", status_code=404)
-    
-    # Truncate to 10 words
-    words = data.title.split()
-    new_title = " ".join(words[:10])
-    if len(words) > 10:
-        new_title += "..."
-        
-    chats[conv_id]["title"] = new_title
-    write_db_to_disk()
-    return HTMLResponse(content=new_title)
-
-@app.patch("/chat/{conv_id}/provider", response_class=HTMLResponse)
-async def set_provider(request: Request, conv_id: str, data: SetProviderModel):
-    if conv_id not in chats:
-        return HTMLResponse(content="Not Found", status_code=404)
-    
-    if data.provider not in PROVIDERS_CONFIG:
-        return HTMLResponse(content="Invalid Provider", status_code=400)
-    
-    chats[conv_id]["provider"] = data.provider
-    # Reset to default model for this provider
-    chats[conv_id]["model"] = PROVIDERS_CONFIG[data.provider]["default_model"]
-    
-    return templates.TemplateResponse("model_dropdown.html", {
-        "request": request,
-        "conversation_id": conv_id,
-        "providers_config": PROVIDERS_CONFIG,
-        "current_provider": chats[conv_id]["provider"],
-        "current_model": chats[conv_id]["model"]
-    })
-
-@app.patch("/chat/{conv_id}/model", response_class=HTMLResponse)
-async def set_model(request: Request, conv_id: str, data: SetModelModel):
-    if conv_id not in chats:
-        return HTMLResponse(content="Not Found", status_code=404)
-    
-    # Validation: model should exist in current provider's list
-    provider = chats[conv_id].get("provider", default_provider)
-    if data.model not in PROVIDERS_CONFIG[provider]["available_models"]:
-         return HTMLResponse(content="Invalid Model", status_code=400)
-
-    chats[conv_id]["model"] = data.model
-    
-    return templates.TemplateResponse("model_dropdown.html", {
-        "request": request,
-        "conversation_id": conv_id,
-        "providers_config": PROVIDERS_CONFIG,
-        "current_provider": provider,
-        "current_model": data.model
-    })
 
 @app.patch("/chat/{conv_id}/message/{msg_index}", response_class=HTMLResponse)
 async def edit_message(request: Request, conv_id: str, msg_index: int, data: EditMessageModel):
@@ -484,6 +406,74 @@ async def edit_message(request: Request, conv_id: str, msg_index: int, data: Edi
         "conversation_id": conv_id
     })
 
+
+#  Provider/Model selection --- 
+class SetModelModel(BaseModel):
+    model: str
+
+class SetProviderModel(BaseModel):
+    provider: str
+
+@app.get("/partials/model-options", response_class=HTMLResponse)
+async def get_model_options(request: Request, provider: str, current_model: str = None):
+    if provider not in PROVIDERS_CONFIG:
+        return HTMLResponse(content="Invalid Provider", status_code=400)
+    
+    models = PROVIDERS_CONFIG[provider]["available_models"]
+    
+    # We create a simple list of buttons for the model dropdown
+    # This is used by the New Chat state to refresh options
+    return templates.TemplateResponse("model_options_list.html", {
+        "request": request,
+        "models": models,
+        "current_model": current_model,
+        "conversation_id": "new" 
+    })
+
+@app.patch("/chat/{conv_id}/model", response_class=HTMLResponse)
+async def set_model(request: Request, conv_id: str, data: SetModelModel):
+    if conv_id not in chats:
+        return HTMLResponse(content="Not Found", status_code=404)
+    
+    # Validation: model should exist in current provider's list
+    provider = chats[conv_id].get("provider", default_provider)
+    if data.model not in PROVIDERS_CONFIG[provider]["available_models"]:
+         return HTMLResponse(content="Invalid Model", status_code=400)
+
+    chats[conv_id]["model"] = data.model
+    
+    return templates.TemplateResponse("model_dropdown.html", {
+        "request": request,
+        "conversation_id": conv_id,
+        "providers_config": PROVIDERS_CONFIG,
+        "current_provider": provider,
+        "current_model": data.model
+    })
+
+@app.patch("/chat/{conv_id}/provider", response_class=HTMLResponse)
+async def set_provider(request: Request, conv_id: str, data: SetProviderModel):
+    if conv_id not in chats:
+        return HTMLResponse(content="Not Found", status_code=404)
+    
+    if data.provider not in PROVIDERS_CONFIG:
+        return HTMLResponse(content="Invalid Provider", status_code=400)
+    
+    chats[conv_id]["provider"] = data.provider
+    # Reset to default model for this provider
+    chats[conv_id]["model"] = PROVIDERS_CONFIG[data.provider]["default_model"]
+    
+    return templates.TemplateResponse("model_dropdown.html", {
+        "request": request,
+        "conversation_id": conv_id,
+        "providers_config": PROVIDERS_CONFIG,
+        "current_provider": chats[conv_id]["provider"],
+        "current_model": chats[conv_id]["model"]
+    })
+
+# Side bar--- 
+class RenameModel(BaseModel):
+    title: str
+
 @app.get("/sidebar", response_class=HTMLResponse)
 async def get_sidebar(request: Request, current_id: str = None):
     conv_list = [{"id": cid, "title": data.get("title", "Untitled")} for cid, data in reversed(list(chats.items()))]
@@ -492,3 +482,26 @@ async def get_sidebar(request: Request, current_id: str = None):
         "conversations": conv_list,
         "current_id": current_id
     })
+
+@app.patch("/chat/{conv_id}/rename", response_class=HTMLResponse)
+async def rename_chat(conv_id: str, data: RenameModel):
+    if conv_id not in chats:
+        return HTMLResponse(content="Not Found", status_code=404)
+    
+    # Truncate to 10 words
+    words = data.title.split()
+    new_title = " ".join(words[:10])
+    if len(words) > 10:
+        new_title += "..."
+        
+    chats[conv_id]["title"] = new_title
+    write_db_to_disk()
+    return HTMLResponse(content=new_title)
+
+@app.delete("/chat/{conv_id}")
+async def delete_chat(conv_id: str):
+    if conv_id in chats:
+        del chats[conv_id]
+        write_db_to_disk()
+    return HTMLResponse(content="")
+
