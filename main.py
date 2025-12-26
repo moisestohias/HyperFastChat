@@ -18,6 +18,15 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # In-memory storage for conversations
 chats = {}
+DB_PATH = "db.json" # temporary for testing
+def read_db_from_disk():
+  with open(DB_PATH) as f: return json.load(f)
+chats = read_db_from_disk()
+
+def write_db_to_disk():
+  with open(DB_PATH, "wt") as f:
+    json.dump(chats, f, indent=2)
+# ---
 
 def load_providers_config():
     with open("LLMConnect/providers_config.json", "r") as f:
@@ -26,6 +35,7 @@ def load_providers_config():
 PROVIDERS_CONFIG = load_providers_config()
 default_provider = list(PROVIDERS_CONFIG.keys())[1] # groq
 default_model = PROVIDERS_CONFIG[default_provider]["default_model"]
+DEFAULT_SYSTEM_PROMPT = "You are a helpful assistant."
 
 # A class to acts like a Pydantic model but works with Forms
 class MessageForm:
@@ -64,7 +74,7 @@ async def get_chat(request: Request, conv_id: str):
             "messages": [
                 {
                     "role": "system",
-                    "content": "You are a helpful assistant."
+                    "content": DEFAULT_SYSTEM_PROMPT
                 }
             ]
         }
@@ -100,29 +110,30 @@ async def send_message(request: Request, conv_id: str, form_data: Annotated[Mess
             "provider": form_data.provider,
             "model": form_data.model,
             "messages": [
-                {"role": "system", "content": "You are a helpful assistant."}
+                {"role": "system", "content": DEFAULT_SYSTEM_PROMPT}
             ]
         }
 
     if actual_conv_id not in chats:
         return HTMLResponse(content="Conversation not found", status_code=404)
 
-    import base64
     processed_files = []
-    for file in form_data.files:
-        if file.size > 0:
-            content = await file.read()
-            url = "#"
-            if file.content_type.startswith("image/"):
-                base64_image = base64.b64encode(content).decode("utf-8")
-                url = f"data:{file.content_type};base64,{base64_image}"
-            
-            processed_files.append({
-                "name": file.filename,
-                "type": file.content_type,
-                "url": url
-            })
-    
+    if form_data.files:
+      import base64
+      for file in form_data.files:
+          if file.size > 0:
+              content = await file.read()
+              url = "#"
+              if file.content_type.startswith("image/"):
+                  base64_image = base64.b64encode(content).decode("utf-8")
+                  url = f"data:{file.content_type};base64,{base64_image}"
+              
+              processed_files.append({
+                  "name": file.filename,
+                  "type": file.content_type,
+                  "url": url
+              })
+      
     # Update conversation history
     chats[actual_conv_id]["messages"].append({
         "role": "user",
@@ -135,6 +146,7 @@ async def send_message(request: Request, conv_id: str, form_data: Annotated[Mess
         "content": "",
         "status": "streaming"
     })
+    write_db_to_disk() # temp only
 
     # Calculate msg_index for the user message
     # It's at len(messages) - 2 because we just appended user and assistant
@@ -236,7 +248,7 @@ async def run_chatbot_logic(conv_id: str):
             await asyncio.sleep(0)
             
         assistant_msg["status"] = "complete"
-            
+        write_db_to_disk() # temp only
     except Exception as e:
         assistant_msg["content"] = f"Error during generation: {str(e)}"
         assistant_msg["status"] = "error"
@@ -293,8 +305,6 @@ async def generate_bot_response_stream(conv_id: str):
             remove .hidden from #edit-container-{bot_msg_index}
             focus() on #edit-textarea-{bot_msg_index}">✏️</button>
     <button class="action-btn" title="Regenerate">♻️</button>
-    <button class="action-btn" title="Thumbs Up" _="on click toggle .text-green-500">👍</button>
-    <button class="action-btn" title="Thumbs Down" _="on click toggle .text-red-500">👎</button>
     '''
     
     yield f"event: done\ndata: {json.dumps(done_html)}\n\n"
@@ -350,6 +360,7 @@ async def get_chat_history(request: Request, conv_id: str):
 async def delete_chat(conv_id: str):
     if conv_id in chats:
         del chats[conv_id]
+        write_db_to_disk()
     return HTMLResponse(content="")
 
 from pydantic import BaseModel
@@ -394,6 +405,7 @@ async def rename_chat(conv_id: str, data: RenameModel):
         new_title += "..."
         
     chats[conv_id]["title"] = new_title
+    write_db_to_disk()
     return HTMLResponse(content=new_title)
 
 @app.patch("/chat/{conv_id}/provider", response_class=HTMLResponse)
@@ -451,16 +463,18 @@ async def edit_message(request: Request, conv_id: str, msg_index: int, data: Edi
     # Update message and remove subsequent ones
     messages[backend_index]["content"] = data.content
     role = messages[backend_index]["role"]
-    chats[conv_id]["messages"] = messages[:backend_index + 1]
-    
-    if role == "user":
-        # Add a new streaming assistant placeholder
-        chats[conv_id]["messages"].append({
-            "role": "assistant",
-            "content": "",
-            "status": "streaming"
-        })
-        asyncio.create_task(run_chatbot_logic(conv_id))
+    write_db_to_disk()
+
+    ## Disable discarding previous generated message for not
+    # chats[conv_id]["messages"] = messages[:backend_index + 1]
+    # if role == "user":
+    #     # Add a new streaming assistant placeholder
+    #     chats[conv_id]["messages"].append({
+    #         "role": "assistant",
+    #         "content": "",
+    #         "status": "streaming"
+    #     })
+    #     asyncio.create_task(run_chatbot_logic(conv_id))
     
     # Return full history to refresh the view
     ui_messages = [msg for msg in chats[conv_id]["messages"] if msg["role"] != "system"]
