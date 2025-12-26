@@ -1,0 +1,107 @@
+<div id="model-dropdown" class="flex items-center gap-2">
+    <!-- Provider Dropdown -->
+    <div class="relative inline-block text-left" _="on click elsewhere add .hidden to #provider-menu">
+        <button type="button"
+            class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-zinc-800/50 backdrop-blur-md text-gray-300 hover:text-white border border-gray-700 hover:border-gray-500 transition-all shadow-lg text-sm font-medium"
+            id="provider-menu-button" _="on click toggle .hidden on #provider-menu">
+            <span id="provider-btn-span">{{ providers_config[current_provider].name }}</span>
+            <svg class="w-4 h-4 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+            </svg>
+        </button>
+
+        <div id="provider-menu"
+            class="hidden absolute left-0 mt-2 w-48 origin-top-left rounded-xl bg-zinc-800 border border-gray-700 shadow-2xl z-50 overflow-hidden context-menu"
+            role="menu">
+            <div class="py-1" role="none">
+                {% for p_id, p_config in providers_config.items() %}
+                <button
+                    class="w-full text-left px-4 py-2 text-sm {% if p_id == current_provider %}text-blue-400 bg-zinc-700{% else %}text-gray-300 hover:bg-zinc-700 hover:text-white{% endif %} transition-colors flex items-center justify-between"
+                    role="menuitem" {% if conversation_id=="new" %} _="on click 
+                        add .hidden to #provider-menu
+                        set #selected-provider-input.value to '{{ p_id }}'
+                        set localStorage.lastSelectedProvider to '{{ p_id }}'
+                        put '{{ p_config.name }}' into #provider-btn-span
+                        
+                        -- Toggle Model List Visibility
+                        add .hidden to .provider-models-list
+                        remove .hidden from #provider-models-{{ p_id }}
+                        
+                        -- Auto-select Default Model
+                        set defaultModel to '{{ p_config.default_model }}'
+                        set #selected-model-input.value to defaultModel
+                        put defaultModel into #model-btn-span
+                        
+                        -- Update Visual Selection in Provider Menu
+                        take .text-blue-400 from .text-blue-400 in #provider-menu
+                        take .bg-zinc-700 from .bg-zinc-700 in #provider-menu
+                        add .text-blue-400 to me
+                        add .bg-zinc-700 to me" {% else %} hx-patch="/chat/{{ conversation_id }}/provider"
+                    hx-ext="json-enc" hx-vals='{"provider": "{{ p_id }}"}' hx-target="#model-dropdown-container"
+                    hx-swap="innerHTML" {% endif %}>
+                    {{ p_config.name }}
+                    {% if p_id == current_provider %}
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                    {% endif %}
+                </button>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Model Dropdown -->
+    <div class="relative inline-block text-left" _="on click elsewhere add .hidden to #model-menu">
+        <button type="button"
+            class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-zinc-800/50 backdrop-blur-md text-gray-300 hover:text-white border border-gray-700 hover:border-gray-500 transition-all shadow-lg text-sm font-medium"
+            id="model-menu-button" _="on click toggle .hidden on #model-menu">
+            <span id="model-btn-span">{{ current_model }}</span>
+            <svg class="w-4 h-4 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+            </svg>
+        </button>
+
+        <div id="model-menu"
+            class="hidden absolute right-0 mt-2 w-72 origin-top-right rounded-xl bg-zinc-800 border border-gray-700 shadow-2xl z-50 overflow-hidden context-menu"
+            role="menu">
+
+            <div id="model-list-container" class="py-1 max-h-96 overflow-y-auto custom-scrollbar">
+                {% for p_id, p_config in providers_config.items() %}
+                <div id="provider-models-{{ p_id }}"
+                    class="provider-models-list {% if p_id != current_provider %}hidden{% endif %}">
+                    {% for model_id in p_config.available_models %}
+                    <button
+                        class="w-full text-left px-4 py-2 text-sm text-gray-300 hover:bg-zinc-700 hover:text-white transition-colors flex items-center justify-between model-option-btn {% if p_id == current_provider and model_id == current_model %}text-blue-400 bg-zinc-700{% endif %}"
+                        role="menuitem" {% if conversation_id=="new" %} _="on click 
+                            set #selected-model-input.value to '{{ model_id }}'
+                            set localStorage.lastSelectedModel to '{{ model_id }}'
+                            put '{{ model_id }}' into #model-btn-span
+                            add .hidden to #model-menu
+                            
+                            -- Visual Selection (Local Scope)
+                            take .text-blue-400 from .text-blue-400 in closest .provider-models-list
+                            take .bg-zinc-700 from .bg-zinc-700 in closest .provider-models-list
+                            add .text-blue-400 to me
+                            add .bg-zinc-700 to me
+                            
+                            -- Toggle Checkmark
+                            add .hidden to .check-icon in closest .provider-models-list
+                            remove .hidden from .check-icon in me" {% else %}
+                        hx-patch="/chat/{{ conversation_id }}/model" hx-ext="json-enc"
+                        hx-vals='{"model": "{{ model_id }}"}' hx-target="#model-dropdown-container" hx-swap="innerHTML"
+                        {% endif %}>
+                        <span class="truncate">{{ model_id }}</span>
+                        <!-- Checkmark Logic -->
+                        <svg class="w-4 h-4 check-icon {% if not (p_id == current_provider and model_id == current_model) %}hidden{% endif %}"
+                            fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                        </svg>
+                    </button>
+                    {% endfor %}
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>

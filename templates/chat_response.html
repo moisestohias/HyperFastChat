@@ -1,6 +1,8 @@
-<div class="flex flex-col gap-2 mb-4 {% if sender == 'user' %}items-end{% else %}items-start{% endif %}">
-    <div
-        class="max-w-[80%] {% if sender == 'user' %}bg-blue-600 text-white rounded-t-2xl rounded-bl-2xl{% else %}bg-gray-800 text-gray-100 rounded-t-2xl rounded-br-2xl{% endif %} p-2 shadow-md">
+<div id="message-{{ msg_index }}"
+    class="message-container flex flex-col gap-2 mb-4 {% if sender == 'user' %}items-end{% else %}items-start{% endif %}"
+    data-msg-index="{{ msg_index }}" data-sender="{{ sender }}">
+    <div id="message-bubble-{{ msg_index }}"
+        class="max-w-[80%] {% if sender == 'user' %} bg-zinc-800 text-white rounded-t-2xl rounded-bl-2xl shadow-md {% else %}bg-zinc-900 text-gray-100 rounded-t-2xl rounded-br-2xl{% endif %} p-2">
         {% if message %}
         <p class="text-sm leading-relaxed whitespace-pre-wrap" _="on load renderMessage(me)">{{ message }}</p>
         {% endif %}
@@ -24,18 +26,44 @@
         {% endif %}
     </div>
 
+    <!-- Edit Mode (Initially Hidden) -->
+    <div id="edit-container-{{ msg_index }}"
+        class="hidden w-full max-w-[80%] {% if sender == 'user' %}self-end{% else %}self-start{% endif %}">
+        <textarea id="edit-textarea-{{ msg_index }}"
+            class="w-full bg-zinc-800 text-white text-sm p-3 rounded-xl border border-blue-500 outline-none resize-none min-h-[100px]"
+            data-original="{{ message }}">{{ message }}</textarea>
+        <div class="flex gap-2 mt-2 {% if sender == 'user' %}justify-end{% else %}justify-start{% endif %}">
+            <button class="px-3 py-1 text-sm bg-zinc-700 hover:bg-zinc-600 text-gray-300 rounded-lg transition-colors"
+                _="on click
+                    add .hidden to #edit-container-{{ msg_index }}
+                    remove .hidden from #message-bubble-{{ msg_index }}
+                    remove .hidden from <.message-actions/> in #message-{{ msg_index }}">Cancel</button>
+            <button class="px-3 py-1 text-sm bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition-colors"
+                hx-patch="/chat/{{ conversation_id }}/message/{{ msg_index }}" hx-ext="json-enc"
+                hx-vals='js:{"content": document.getElementById("edit-textarea-{{ msg_index }}").value}'
+                hx-target="#new-messages" hx-swap="innerHTML">Save</button>
+        </div>
+    </div>
+
     <!-- Message Actions -->
     <div class="message-actions {% if sender == 'user' %}flex-row-reverse{% endif %}">
         {% if sender == 'user' %}
-        <button class="action-btn" title="Edit">✏️</button>
+        <button class="action-btn" title="Edit" _="on click
+            add .hidden to #message-bubble-{{ msg_index }}
+            add .hidden to my parentElement
+            remove .hidden from #edit-container-{{ msg_index }}
+            focus() on #edit-textarea-{{ msg_index }}">✏️</button>
         <button class="action-btn" title="Copy" data-message="{{ message }}"
             _="on click copyMessage(me, my.getAttribute('data-message'))">📋</button>
         {% else %}
         <button class="action-btn" title="Copy" data-message="{{ message }}"
             _="on click copyMessage(me, my.getAttribute('data-message'))">📋</button>
+        <button class="action-btn" title="Edit" _="on click
+            add .hidden to #message-bubble-{{ msg_index }}
+            add .hidden to my parentElement
+            remove .hidden from #edit-container-{{ msg_index }}
+            focus() on #edit-textarea-{{ msg_index }}">✏️</button>
         <button class="action-btn" title="Regenerate">♻️</button>
-        <button class="action-btn" title="Thumbs Up" _="on click toggle .text-green-500">👍</button>
-        <button class="action-btn" title="Thumbs Down" _="on click toggle .text-red-500">👎</button>
         {% endif %}
     </div>
 

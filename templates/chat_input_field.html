@@ -1,6 +1,6 @@
 <form id="chatForm" hx-encoding="multipart/form-data" hx-post="/chat/{{ conversation_id }}/send-message"
-    hx-trigger="submit" hx-target="#new-messages" hx-swap="beforeend" class="relative bg-gray-800 rounded-3xl shadow-lg"
-    _="on htmx:afterRequest 
+    hx-trigger="submit" hx-target="#new-messages" hx-swap="beforeend"
+    class="relative bg-zinc-800 rounded-3xl shadow-lg border-t" _="on htmx:afterRequest 
       set #messageInput.value to '' 
       set #messageInput.style.height to 'auto'
       set #fileInput.value to ''
@@ -10,14 +10,19 @@
     <div id="filePreview" class="px-2 pt-2 flex flex-wrap gap-2"></div>
 
     <div class="flex items-end gap-2 p-2">
+        <!-- Hidden selected model and provider -->
+        <input type="hidden" id="selected-provider-input" name="provider" value="{{ current_provider or 'groq' }}">
+        <input type="hidden" id="selected-model-input" name="model" value="{{ current_model or '' }}">
+
         <!-- Attach Button -->
         <button type="button"
-            class="flex-shrink-0 w-10 h-10 rounded-full bg-gray-700 hover:bg-gray-600 text-white flex items-center justify-center transition-colors"
+            class="flex-shrink-0 w-10 h-10 rounded-full bg-zinc-700 hover:bg-zinc-600 text-white flex items-center justify-center transition-colors"
             onclick="document.getElementById('fileInput').click()">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
             </svg>
         </button>
+
 
         <!-- Auto-expanding Textarea -->
         <textarea id="messageInput" name="message" placeholder="Ask anything..." rows="1"
@@ -32,7 +37,7 @@
 
         <!-- Send Button -->
         <button type="submit"
-            class="flex-shrink-0 w-10 h-10 rounded-full bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center transition-colors">
+            class="flex-shrink-0 w-10 h-10 rounded-full bg-zinc-600 hover:bg-zinc-700 text-white flex items-center justify-center transition-colors">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 10l7-7m0 0l7 7m-7-7v18" />
             </svg>
@@ -57,7 +62,7 @@
                         container.innerHTML = `
               <img src="${event.target.result}" class="max-h-32 rounded-lg" alt="Preview">
               <button type="button"
-                      class="absolute top-1 right-1 bg-gray-900 bg-opacity-70 hover:bg-opacity-90 text-white rounded-full w-6 h-6 flex items-center justify-center"> ✕ </button> `;
+                      class="absolute top-1 right-1 bg-zinc-900 bg-opacity-70 hover:bg-opacity-90 text-white rounded-full w-6 h-6 flex items-center justify-center"> ✕ </button> `;
 
                         // Remove specific file by identity, not index
                         container.querySelector("button").onclick = () => {
@@ -73,7 +78,7 @@
                     reader.readAsDataURL(file);
                 } else {
                     const div = document.createElement('div');
-                    div.className = "text-gray-300 bg-gray-700 px-2 py-1 rounded-lg flex items-center gap-2";
+                    div.className = "text-gray-300 bg-zinc-700 px-2 py-1 rounded-lg flex items-center gap-2";
                     div.textContent = file.name;
                     preview.appendChild(div);
                 }

@@ -156,3 +156,39 @@ window.finalizeStreamedMessage = function (el) {
     // Call the full render function to add copy buttons and final styling
     window.renderMessage(el);
 };
+
+/**
+ * Client-side component renderer for Bot Action Buttons.
+ * Generates the Copy, Edit, and Regenerate buttons dynamically.
+ */
+window.renderBotActions = function (containerEl, convId, msgIndex, content) {
+    if (!containerEl) return;
+
+    // Escape content for safety in attributes
+    const safeContent = content
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+
+    const html = `
+        <button class="action-btn" title="Copy" data-message="${safeContent}" 
+            _="on click copyMessage(me, my.getAttribute('data-message'))">📋</button>
+        
+        <button class="action-btn" title="Edit" _="on click
+            add .hidden to #message-bubble-${msgIndex}
+            add .hidden to my parentElement
+            remove .hidden from #edit-container-${msgIndex}
+            focus() on #edit-textarea-${msgIndex}">✏️</button>
+        
+        <button class="action-btn" title="Regenerate">♻️</button>
+    `;
+
+    containerEl.innerHTML = html;
+
+    // Activate Hyperscript logic on the new elements
+    if (window._hyperscript) {
+        window._hyperscript.processNode(containerEl);
+    }
+};

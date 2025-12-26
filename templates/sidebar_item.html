@@ -1,0 +1,69 @@
+<div id="side-item-{{ conv_id }}"
+    class="group relative flex items-center gap-3 px-3 py-2 rounded-xl transition-all duration-200 bg-zinc-900 {{ 'bg-zinc-800 text-white' if active else 'text-gray-400 hover:bg-zinc-800/50 hover:text-gray-200' }}">
+
+    <!-- Title Area (View/Edit) -->
+    <div class="flex-1 min-w-0 relative">
+        <!-- View Mode: Title Button -->
+        <button id="title-btn-{{ conv_id }}" hx-get="/chat/{{ conv_id }}/history" hx-target="#new-messages"
+            hx-swap="innerHTML" hx-push-url="/chat/{{ conv_id }}"
+            class="w-full text-left text-sm truncate pr-6 focus:outline-none" _="on click
+                   remove .bg-zinc-800 .text-white from .group
+                   add .bg-zinc-800 .text-white to my parentElement.parentElement">
+            {{ title }}
+        </button>
+
+        <!-- Edit Mode: Inline Input -->
+        <input type="text" name="title" id="rename-input-{{ conv_id }}" value="{{ title }}"
+            class="hidden w-full bg-zinc-800 text-sm text-white px-2 py-0.5 rounded border border-blue-500 outline-none"
+            hx-patch="/chat/{{ conv_id }}/rename" hx-trigger="keyup[key=='Enter']" hx-target="#title-btn-{{ conv_id }}"
+            hx-swap="innerHTML" hx-ext="json-enc" _="on keyup[key=='Escape'] or blur
+                 if not #title-btn-{{ conv_id }}.classList.contains('hidden') halt end
+                 add .hidden to me
+                 remove .hidden from #title-btn-{{ conv_id }}
+               on htmx:afterRequest
+                 add .hidden to me
+                 remove .hidden from #title-btn-{{ conv_id }}
+                 set #title-btn-{{ conv_id }}.innerHTML to my value">
+    </div>
+
+    <!-- Context Menu Trigger (...) -->
+    <div class="context-trigger-container absolute right-2 opacity-0 group-hover:opacity-100 transition-opacity z-50" _="on menuOpened add .opacity-100 .pointer-events-auto to me
+            on menuClosed remove .opacity-100 .pointer-events-auto from me">
+        <button class="p-1 hover:bg-zinc-700 rounded-md text-gray-400 hover:text-white" _="on click
+                 toggle .hidden on next .context-menu
+                 if (next .context-menu).classList.contains('hidden')
+                   send menuClosed to my parentElement
+                 else
+                   send menuOpened to my parentElement
+                 end
+                 halt">
+            <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                <path
+                    d="M6 10a2 2 0 11-4 0 2 2 0 014 0zM12 10a2 2 0 11-4 0 2 2 0 014 0zM18 10a2 2 0 11-4 0 2 2 0 014 0z" />
+            </svg>
+        </button>
+
+        <!-- Context Menu Dropdown -->
+        <div class="context-menu hidden absolute right-0 mt-2 w-32 bg-zinc-900 border border-gray-700 rounded-lg shadow-xl overflow-hidden"
+            _="on click elsewhere
+                 add .hidden to me
+                 send menuClosed to my parentElement">
+            <button hx-delete="/chat/{{ conv_id }}" hx-target="#side-item-{{ conv_id }}" hx-swap="outerHTML"
+                class="w-full text-left px-4 py-2 text-sm text-red-400 hover:bg-red-400/10 transition-colors">
+                Delete
+            </button>
+            <button class="w-full text-left px-4 py-2 text-sm text-gray-300 hover:bg-zinc-700 transition-colors" _="on click
+                   add .hidden to #title-btn-{{ conv_id }}
+                   remove .hidden from #rename-input-{{ conv_id }}
+                   focus() on #rename-input-{{ conv_id }}
+                   add .hidden to my parentElement
+                   send menuClosed to my parentElement.parentElement">
+                Rename
+            </button>
+            <button
+                class="w-full text-left px-4 py-2 text-sm text-gray-300 hover:bg-zinc-700 transition-colors rounded">Pin</button>
+            <button
+                class="w-full text-left px-4 py-2 text-sm text-gray-300 hover:bg-zinc-700 transition-colors rounded">Archive</button>
+        </div>
+    </div>
+</div>
