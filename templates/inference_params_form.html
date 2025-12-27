@@ -1,0 +1,74 @@
+<div class="space-y-5">
+    <!-- Temperature -->
+    <div class="param-control pb-4 border-b border-gray-800/50">
+        <div class="flex justify-between items-center mb-2">
+            <label class="text-xs text-gray-300 font-medium tracking-tight">Temperature</label>
+            <span id="temp-value" class="text-[10px] text-blue-400 font-mono bg-blue-400/10 px-1.5 py-0.5 rounded">{{
+                params.temperature or 0.7 }}</span>
+        </div>
+        <input type="range" name="temperature" min="0" max="2" step="0.1" value="{{ params.temperature or 0.7 }}"
+            class="w-full h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer slider accent-blue-500"
+            hx-patch="/chat/{{ conversation_id }}/inference-params" hx-trigger="change" hx-ext="json-enc"
+            _="on input put my value into #temp-value">
+        <div class="flex justify-between text-[9px] text-gray-600 mt-2 font-bold uppercase tracking-widest">
+            <span>Precise</span><span>Creative</span>
+        </div>
+    </div>
+
+    <!-- Top P -->
+    <div class="param-control pb-4 border-b border-gray-800/50">
+        <div class="flex justify-between items-center mb-2">
+            <label class="text-xs text-gray-300 font-medium tracking-tight">Top P</label>
+            <span id="topp-value"
+                class="text-[10px] text-indigo-400 font-mono bg-indigo-400/10 px-1.5 py-0.5 rounded">{{ params.top_p or
+                0.95 }}</span>
+        </div>
+        <input type="range" name="top_p" min="0" max="1" step="0.05" value="{{ params.top_p or 0.95 }}"
+            class="w-full h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer slider accent-indigo-500"
+            hx-patch="/chat/{{ conversation_id }}/inference-params" hx-trigger="change" hx-ext="json-enc"
+            _="on input put my value into #topp-value">
+    </div>
+
+    <!-- Max Tokens -->
+    <div class="param-control pb-4 border-b border-gray-800/50">
+        <div class="flex justify-between items-center">
+            <label class="text-xs text-gray-300 font-medium tracking-tight">Max Tokens</label>
+            <input type="number" id="max-tokens-input" name="max_tokens" value="{{ params.max_tokens or 4096 }}"
+                class="w-20 bg-zinc-800 text-white text-[11px] text-right px-2 py-1.5 rounded-lg border border-gray-700 focus:border-blue-500 outline-none transition-colors"
+                hx-patch="/chat/{{ conversation_id }}/inference-params" hx-trigger="change" hx-ext="json-enc">
+        </div>
+    </div>
+
+    <!-- Frequency Penalty (if supported) -->
+    {% if 'frequency_penalty' in supported_parameters %}
+    <div class="param-control pb-4 border-b border-gray-800/50">
+        <div class="flex justify-between items-center mb-2">
+            <label class="text-xs text-gray-300 font-medium tracking-tight">Frequency Penalty</label>
+            <span id="freq-value"
+                class="text-[10px] text-emerald-400 font-mono bg-emerald-400/10 px-1.5 py-0.5 rounded">{{
+                params.frequency_penalty or 0 }}</span>
+        </div>
+        <input type="range" name="frequency_penalty" min="-2" max="2" step="0.1"
+            value="{{ params.frequency_penalty or 0 }}"
+            class="w-full h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer slider accent-emerald-500"
+            hx-patch="/chat/{{ conversation_id }}/inference-params" hx-trigger="change" hx-ext="json-enc"
+            _="on input put my value into #freq-value">
+    </div>
+    {% endif %}
+
+    <!-- Presence Penalty (if supported) -->
+    {% if 'presence_penalty' in supported_parameters %}
+    <div class="param-control pb-4 border-b border-gray-800/50 focus-within:border-blue-500 transition-colors">
+        <div class="flex justify-between items-center mb-2">
+            <label class="text-xs text-gray-300 font-medium tracking-tight">Presence Penalty</label>
+            <span id="pres-value" class="text-[10px] text-rose-400 font-mono bg-rose-400/10 px-1.5 py-0.5 rounded">{{
+                params.presence_penalty or 0 }}</span>
+        </div>
+        <input type="range" name="presence_penalty" min="-2" max="2" step="0.1"
+            value="{{ params.presence_penalty or 0 }}"
+            class="w-full h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer slider accent-rose-500"
+            hx-patch="/chat/{{ conversation_id }}/inference-params" hx-trigger="change" hx-ext="json-enc"
+            _="on input put my value into #pres-value">
+    </div>
+    {% endif %}
+</div>

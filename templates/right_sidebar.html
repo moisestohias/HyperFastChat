@@ -1,0 +1,67 @@
+<div id="right-sidebar-content" class="h-full flex flex-col overflow-hidden p-0">
+    <!-- Header -->
+    <div class="flex items-center justify-between p-4 border-b border-gray-800">
+        <h2 class="text-sm font-semibold text-white uppercase tracking-wider">Model Settings</h2>
+        <button class="text-gray-400 hover:text-white p-1 rounded-lg hover:bg-zinc-800 transition-colors" _="on click toggle .right-sidebar-expanded .right-sidebar-collapsed on #right-sidebar
+               set localStorage.rightSidebarStatus to 'collapsed'">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+        </button>
+    </div>
+
+    <div class="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-6">
+        <!-- Provider Selection -->
+        <div>
+            <label class="text-[10px] text-gray-500 uppercase font-bold tracking-widest mb-3 block">Provider</label>
+            <div id="provider-select" class="grid grid-cols-1 gap-2">
+                {% for p_id, p_config in providers_config.items() %}
+                <button class="provider-btn w-full text-left px-3 py-2 rounded-lg text-sm border transition-all duration-200
+                    {{ 'provider-btn-active' if p_id == current_provider 
+                       else 'bg-zinc-800/50 text-gray-400 border-transparent hover:bg-zinc-800 hover:text-gray-200' }}"
+                    data-provider="{{ p_id }}"
+                    _="on click 
+                        remove .provider-btn-active from .provider-btn
+                        add .border-transparent to .provider-btn
+                        
+                        remove .border-transparent from me
+                        add .provider-btn-active to me
+                        
+                        set #selected-provider-input.value to '{{ p_id }}'
+                        call htmx.ajax('GET', '/partials/model-list?provider={{ p_id }}&conversation_id={{ conversation_id }}', '#model-list')">
+                    {{ p_config.name }}
+                </button>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Model Selection -->
+        <div>
+            <label class="text-[10px] text-gray-500 uppercase font-bold tracking-widest mb-3 block">Model</label>
+            <div id="model-list" class="space-y-1 max-h-64 overflow-y-auto custom-scrollbar pr-1">
+                {% with provider=current_provider, models=providers_config[current_provider].models %}
+                {% include "right_sidebar_model_list.html" %}
+                {% endwith %}
+            </div>
+        </div>
+
+        <!-- Inference Parameters -->
+        <div class="pt-4 border-t border-gray-800">
+            <div class="flex items-center justify-between mb-4">
+                <label class="text-[10px] text-gray-500 uppercase font-bold tracking-widest">Parameters</label>
+                <button
+                    class="text-[10px] text-blue-400 hover:text-blue-300 font-bold uppercase tracking-tighter transition-colors"
+                    hx-post="/chat/{{ conversation_id }}/inference-params/reset" hx-target="#inference-params-form"
+                    hx-swap="innerHTML">
+                    Reset
+                </button>
+            </div>
+            <div id="inference-params-form">
+                {% with params=inference_params, supported_parameters=(current_model_info.supported_parameters if
+                current_model_info else []) %}
+                {% include "inference_params_form.html" %}
+                {% endwith %}
+            </div>
+        </div>
+    </div>
+</div>

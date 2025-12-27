@@ -15,22 +15,44 @@ class Provider(Enum):
     OPENROUTER = "openrouter"
 
 @dataclass
+class ModelConfig:
+    """Configuration for a specific model."""
+    id: str
+    name: str
+    description: Optional[str] = None
+    context_length: int = 4096
+    max_completion_tokens: int = 1024
+    architecture: Dict[str, Any] = field(default_factory=dict)
+    pricing: Dict[str, str] = field(default_factory=dict)
+    supported_parameters: List[str] = field(default_factory=list)
+    default_parameters: Dict[str, Any] = field(default_factory=dict)
+
+@dataclass
 class ProviderConfig:
     """Base configuration for an API provider."""
     name: str
     base_url: str
     endpoint: str
     api_key_env_var: str
-    available_models: List[str]
+    models: List[ModelConfig]
     default_model: str
     default_temperature: float = 0.7
     default_max_tokens: int = 100
     default_timeout: float = 30.0
     
     def __post_init__(self):
-        """Validate that default model is in available models."""
-        if self.default_model not in self.available_models:
+        """Convert models list to ModelConfig objects and validate."""
+        if isinstance(self.models, list) and len(self.models) > 0 and isinstance(self.models[0], dict):
+            self.models = [ModelConfig(**m) if isinstance(m, dict) else m for m in self.models]
+            
+        available_model_ids = [m.id for m in self.models]
+        if self.default_model not in available_model_ids:
             raise ValueError(f"Default model '{self.default_model}' not in available models for {self.name}")
+    
+    @property
+    def available_models(self) -> List[str]:
+        """Backward compatibility: returns list of model IDs."""
+        return [m.id for m in self.models]
     
     def validate_model(self, model: str) -> bool:
         """Check if the given model is supported by this provider."""

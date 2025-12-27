@@ -1,0 +1,29 @@
+{% for model in models %}
+<button class="model-btn w-full text-left px-3 py-2 rounded-lg text-sm transition-all duration-200 group
+    {{ 'model-btn-active' if model.id == current_model 
+       else 'text-gray-400 hover:bg-zinc-800 hover:text-gray-200 border border-transparent' }}"
+    hx-patch="/chat/{{ conversation_id }}/model" hx-vals='{"model_id": "{{ model.id }}"}' hx-ext="json-enc"
+    hx-trigger="click" _="on click 
+        take .model-btn-active from .model-btn
+        add .model-btn-active to me
+        set #selected-model-input.value to '{{ model.id }}'
+       on mouseenter 
+        set rect to my.getBoundingClientRect()
+        set #model-info-popup.style.top to (rect.top - 10) + 'px'
+        set #model-info-popup.style.right to '335px'
+        remove .hidden from #model-info-popup
+        call htmx.ajax('GET', '/models/{{ provider }}/{{ model.id }}', '#model-info-popup')
+       on mouseleave 
+        add .hidden to #model-info-popup">
+    <div class="flex items-center justify-between">
+        <span class="truncate">{{ model.name }}</span>
+        {% if model.architecture.modality == 'text+image->text' %}
+        <svg class="w-3 h-3 text-gray-600 group-hover:text-gray-400" fill="currentColor" viewBox="0 0 20 20">
+            <path fill-rule="evenodd"
+                d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z"
+                clip-rule="evenodd" />
+        </svg>
+        {% endif %}
+    </div>
+</button>
+{% endfor %}

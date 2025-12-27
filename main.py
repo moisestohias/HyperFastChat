@@ -1,18 +1,15 @@
 import uuid
 import asyncio
-
 import json
 
-from fastapi import FastAPI, Request, UploadFile, File, Form, Depends
+from fastapi import FastAPI, Request, Form, Depends
 from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
-from typing import Annotated
 
 from fastapi.staticfiles import StaticFiles
-from LLMConnect.api_client_factory import APIClientFactory, Provider
-from pydantic import BaseModel, Field
+from LLMConnect.api_client_factory import APIClientFactory, Provider, PROVIDER_CONFIGS
 from datetime import datetime
-from typing import Optional, List, Dict
+from typing import Annotated
 
 templates = Jinja2Templates(directory="templates")
 app = FastAPI()
@@ -20,82 +17,11 @@ app = FastAPI()
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # --- Data Models ---
-class InferenceParameters(BaseModel):
-    context_length: int = 262144
-    max_completion_tokens: int = 16384
-    temperature: float = 0.7
-    top_p: float = 0.95
-
-class Conversation(BaseModel):
-    id: str
-    title: str = "Untitled"
-    messages: List[dict] = Field(default_factory=list)
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
-    provider: str
-    model: str
-    inference_parameters: InferenceParameters = Field(default_factory=InferenceParameters)
-    folder_id: Optional[str] = None
-    is_pinned: bool = False
-    is_archived: bool = False
-
-class Folder(BaseModel):
-    id: str
-    name: str
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
-    color: Optional[str] = None
-    icon: Optional[str] = "folder"
-    sort_order: int = 0
-
-# In-memory storage
-chats: Dict[str, dict] = {}
-folders: Dict[str, dict] = {}
-DB_PATH = "db.json"
-
-def read_db_from_disk():
-    try:
-        with open(DB_PATH, "r") as f:
-            data = json.load(f)
-            # Handle old format where it was just the chats dict
-            if isinstance(data, dict) and "chats" in data:
-                return data.get("chats", {}), data.get("folders", {})
-            return data, {} # Old format
-    except (FileNotFoundError, json.JSONDecodeError):
-        return {}, {}
-
-chats, folders = read_db_from_disk()
-
-def write_db_to_disk():
-    with open(DB_PATH, "wt") as f:
-        json.dump({"chats": chats, "folders": folders}, f, indent=2, default=str)
-# ---
-
-def load_providers_config():
-    with open("LLMConnect/providers_config.json", "r") as f:
-        return json.load(f)
-
-PROVIDERS_CONFIG = load_providers_config()
-default_provider = list(PROVIDERS_CONFIG.keys())[1] # groq
-default_model = PROVIDERS_CONFIG[default_provider]["default_model"]
-DEFAULT_SYSTEM_PROMPT = "You are a helpful assistant."
-
-# A class to acts like a Pydantic model but works with Forms
-class MessageForm:
-    def __init__(
-        self,
-        message: str = Form(...),
-        files: list[UploadFile] = File(default=[]),
-        provider: str = Form(default_provider),
-        model: str = Form(default_model)
-    ):
-        self.message = message
-        self.files = files
-        self.provider = provider
-        self.model = model
+from models import *
 
 @app.get("/", response_class=HTMLResponse)
 async def read_root(request: Request):
+    model_info = next((m for m in PROVIDERS_CONFIG[default_provider]["models"] if m["id"] == PROVIDERS_CONFIG[default_provider]["default_model"]), None)
     return templates.TemplateResponse("index.html", {
         "request": request, 
         "conversation_id": "new",
@@ -103,7 +29,9 @@ async def read_root(request: Request):
         "stream_id": str(uuid.uuid4())[:8],
         "providers_config": PROVIDERS_CONFIG,
         "current_provider": default_provider,
-        "current_model": PROVIDERS_CONFIG[default_provider]["default_model"]
+        "current_model": PROVIDERS_CONFIG[default_provider]["default_model"],
+        "current_model_info": model_info,
+        "inference_params": InferenceParameters().dict()
     })
 
 @app.get("/chat/{conv_id}", response_class=HTMLResponse)
@@ -129,14 +57,25 @@ async def get_chat(request: Request, conv_id: str):
     # Get messages for rendering (skipping system message for UI)
     ui_messages = [msg for msg in chats[conv_id]["messages"] if msg["role"] != "system"]
     
+    current_chat = chats[conv_id]
+    current_provider = current_chat.get("provider", default_provider)
+    current_model_id = current_chat.get("model", "")
+    
+    # Get current model info from config
+    model_info = None
+    if current_provider in PROVIDERS_CONFIG:
+        model_info = next((m for m in PROVIDERS_CONFIG[current_provider]["models"] if m["id"] == current_model_id), None)
+
     return templates.TemplateResponse("index.html", {
         "request": request, 
         "conversation_id": conv_id,
         "history": ui_messages,
         "stream_id": str(uuid.uuid4())[:8],
         "providers_config": PROVIDERS_CONFIG,
-        "current_provider": chats[conv_id].get("provider", default_provider),
-        "current_model": chats[conv_id].get("model", "")
+        "current_provider": current_provider,
+        "current_model": current_model_id,
+        "current_model_info": model_info,
+        "inference_params": current_chat.get("inference_parameters", {})
     })
 
 @app.post("/chat/{conv_id}/send-message")
@@ -250,6 +189,17 @@ async def send_message(request: Request, conv_id: str, form_data: Annotated[Mess
             "current_model": chats[actual_conv_id]["model"]
         })
         response_content += f'<div id="chat-form-container" hx-swap-oob="innerHTML">{input_field_html}</div>'
+
+        # Update right sidebar for the new conversation
+        right_sidebar_content = templates.get_template("right_sidebar.html").render({
+            "request": request,
+            "conversation_id": actual_conv_id,
+            "providers_config": PROVIDERS_CONFIG,
+            "current_provider": chats[actual_conv_id]["provider"],
+            "current_model": chats[actual_conv_id]["model"],
+            "inference_params": chats[actual_conv_id].get("inference_parameters", {})
+        })
+        response_content += f'<div id="right-sidebar" hx-swap-oob="innerHTML">{right_sidebar_content}</div>'
     
     return HTMLResponse(content=response_content, headers=headers)
 
@@ -271,6 +221,12 @@ async def run_chatbot_logic(conv_id: str):
     # Simulation setup
     provider_name = chats[conv_id].get("provider", default_provider)
     model_name = chats[conv_id].get("model")
+
+    print(f"\n{'*'*60}")
+    print(f"[CHATBOT] Generating response for conversation: {conv_id}")
+    print(f"[CHATBOT] Using Provider: {provider_name}")
+    print(f"[CHATBOT] Using Model ID: {model_name}")
+    print(f"{'*'*60}\n")
     
     try:
         provider = Provider(provider_name)
@@ -300,7 +256,15 @@ async def run_chatbot_logic(conv_id: str):
     try:
         accumulated = ""
         # The chat method is flexible - if passed a list, it treats it as full history
-        stream = await client.chat(history_to_send, stream=True)
+        params = chats[conv_id].get("inference_parameters", {})
+        
+        stream = await client.chat(
+            history_to_send, 
+            stream=True,
+            temperature=params.get("temperature", 0.7),
+            top_p=params.get("top_p", 0.95),
+            max_tokens=params.get("max_tokens", 4096)
+        )
         
         async for chunk in stream:
             accumulated += chunk
@@ -399,20 +363,27 @@ async def get_chat_history(request: Request, conv_id: str):
         "current_model": chats[conv_id].get("model", "")
     })
 
-    model_dropdown_html = templates.get_template("model_dropdown.html").render({
+    # Update right sidebar content
+    provider = chats[conv_id].get("provider", default_provider)
+    model_id = chats[conv_id].get("model", "")
+    model_info = None
+    if provider in PROVIDERS_CONFIG:
+        model_info = next((m for m in PROVIDERS_CONFIG[provider]["models"] if m["id"] == model_id), None)
+
+    right_sidebar_html = templates.get_template("right_sidebar.html").render({
         "request": request,
         "conversation_id": conv_id,
         "providers_config": PROVIDERS_CONFIG,
-        "current_provider": chats[conv_id].get("provider", default_provider),
-        "current_model": chats[conv_id].get("model", "")
+        "current_provider": provider,
+        "current_model": model_id,
+        "current_model_info": model_info,
+        "inference_params": chats[conv_id].get("inference_parameters", {})
     })
 
-    return HTMLResponse(content=history_html + f'<div id="chat-form-container" hx-swap-oob="innerHTML">{input_field_html}</div>' + f'<div id="model-dropdown-container" hx-swap-oob="innerHTML">{model_dropdown_html}</div>')
+    return HTMLResponse(content=history_html + 
+                        f'<div id="chat-form-container" hx-swap-oob="innerHTML">{input_field_html}</div>' + 
+                        f'<div id="right-sidebar" hx-swap-oob="innerHTML">{right_sidebar_html}</div>')
 
-
-
-class EditMessageModel(BaseModel):
-    content: str
 
 @app.patch("/chat/{conv_id}/message/{msg_index}", response_class=HTMLResponse)
 async def edit_message(request: Request, conv_id: str, msg_index: int, data: EditMessageModel):
@@ -452,20 +423,155 @@ async def edit_message(request: Request, conv_id: str, msg_index: int, data: Edi
 
 
 #  Provider/Model selection --- 
-class SetModelModel(BaseModel):
-    model: str
+@app.get("/partials/model-list", response_class=HTMLResponse)
+async def get_model_list_partial(request: Request, provider: str, conversation_id: str = "new"):
+    if provider not in PROVIDERS_CONFIG:
+        return HTMLResponse(content="Invalid Provider", status_code=400)
+    
+    models = PROVIDERS_CONFIG[provider]["models"]
+    current_model = ""
+    if conversation_id != "new" and conversation_id in chats:
+        current_model = chats[conversation_id].get("model", "")
 
-class SetProviderModel(BaseModel):
-    provider: str
+    return templates.TemplateResponse("right_sidebar_model_list.html", {
+        "request": request,
+        "models": models,
+        "current_model": current_model,
+        "conversation_id": conversation_id,
+        "provider": provider
+    })
+
+@app.get("/models/{provider}/{model_id:path}", response_class=HTMLResponse)
+async def get_model_details(request: Request, provider: str, model_id: str):
+    if provider not in PROVIDERS_CONFIG:
+        return HTMLResponse(content="Provider not found", status_code=404)
+    
+    # URL decode the model_id in case it has special characters
+    from urllib.parse import unquote
+    model_id = unquote(model_id)
+    
+    model = next((m for m in PROVIDERS_CONFIG[provider]["models"] if m["id"] == model_id), None)
+    if not model:
+        print(f"[DEBUG] Model not found: {model_id}")
+        print(f"[DEBUG] Available models: {[m['id'] for m in PROVIDERS_CONFIG[provider]['models']]}")
+        return HTMLResponse(content="Model not found", status_code=404)
+    
+    return templates.TemplateResponse("model_details_card.html", {
+        "request": request,
+        "model": model,
+        "provider": provider
+    })
+
+@app.patch("/chat/{conv_id}/model", response_class=HTMLResponse)
+async def set_model(request: Request, conv_id: str, data: SetModelModel):
+    # Special case for "new" conversation - just return success
+    # The actual model will be set when the first message is sent
+    if conv_id == "new":
+        print(f"\n{'='*60}")
+        print(f"[MODEL SELECTION] Conversation: new (pre-creation)")
+        print(f"[MODEL SELECTION] Selected Model: {data.model_id}")
+        print(f"[MODEL SELECTION] This will be used when conversation is created")
+        print(f"{'='*60}\n")
+        return HTMLResponse(content="OK")
+    
+    if conv_id not in chats:
+        return HTMLResponse(content="Not Found", status_code=404)
+    
+    provider = chats[conv_id].get("provider", default_provider)
+    model_info = next((m for m in PROVIDERS_CONFIG[provider]["models"] if m["id"] == data.model_id), None)
+    
+    if not model_info:
+         return HTMLResponse(content="Invalid Model", status_code=400)
+
+    # DEBUG: Print model selection
+    print(f"\n{'='*60}")
+    print(f"[MODEL SELECTION] Conversation: {conv_id}")
+    print(f"[MODEL SELECTION] Provider: {provider}")
+    print(f"[MODEL SELECTION] Previous Model: {chats[conv_id].get('model', 'None')}")
+    print(f"[MODEL SELECTION] New Model: {data.model_id}")
+    print(f"[MODEL SELECTION] Model Name: {model_info['name']}")
+    print(f"{'='*60}\n")
+
+    chats[conv_id]["model"] = data.model_id
+    
+    # When switching model, also reset parameters to defaults if they match the model
+    # (Optional, but good for UX)
+    # chats[conv_id]["inference_parameters"] = model_info["default_parameters"].copy()
+    
+    write_db_to_disk()
+    
+    # Return empty response since UI is updated via Hyperscript
+    return HTMLResponse(content="OK")
+
+@app.patch("/chat/{conv_id}/provider", response_class=HTMLResponse)
+async def set_provider(request: Request, conv_id: str, data: SetProviderModel):
+    if conv_id not in chats:
+        return HTMLResponse(content="Not Found", status_code=404)
+    
+    if data.provider_id not in PROVIDERS_CONFIG:
+        return HTMLResponse(content="Invalid Provider", status_code=400)
+    
+    chats[conv_id]["provider"] = data.provider_id
+    # Reset to default model for this provider
+    new_model_id = PROVIDERS_CONFIG[data.provider_id]["default_model"]
+    chats[conv_id]["model"] = new_model_id
+    
+    write_db_to_disk()
+    
+    # Trigger a full reload of the sidebar content for this chat
+    sidebar_content = templates.get_template("right_sidebar.html").render({
+        "request": request,
+        "conversation_id": conv_id,
+        "providers_config": PROVIDERS_CONFIG,
+        "current_provider": data.provider_id,
+        "current_model": new_model_id,
+        "inference_params": chats[conv_id].get("inference_parameters", {})
+    })
+    
+    return HTMLResponse(content=sidebar_content)
+
+
+@app.patch("/chat/{conv_id}/inference-params", response_class=HTMLResponse)
+async def update_inference_params(conv_id: str, data: InferenceParamsModel):
+    if conv_id not in chats:
+        return HTMLResponse(status_code=404)
+    
+    params = chats[conv_id].setdefault("inference_parameters", {})
+    for field, value in data.dict(exclude_none=True).items():
+        params[field] = value
+    
+    write_db_to_disk()
+    return HTMLResponse(content="OK")
+
+@app.post("/chat/{conv_id}/inference-params/reset")
+async def reset_inference_params(request: Request, conv_id: str):
+    if conv_id not in chats:
+        return HTMLResponse(status_code=404)
+        
+    provider = chats[conv_id].get("provider")
+    model_id = chats[conv_id].get("model")
+    
+    model = next((m for m in PROVIDERS_CONFIG[provider]["models"] if m["id"] == model_id), None)
+    if not model:
+        return HTMLResponse(content="Model not found", status_code=404)
+
+    chats[conv_id]["inference_parameters"] = model["default_parameters"].copy()
+    write_db_to_disk()
+    
+    return templates.TemplateResponse("inference_params_form.html", {
+        "request": request,
+        "conversation_id": conv_id,
+        "params": chats[conv_id]["inference_parameters"],
+        "supported_parameters": model.get("supported_parameters", [])
+    })
 
 @app.get("/partials/model-options", response_class=HTMLResponse)
 async def get_model_options(request: Request, provider: str, current_model: str = None):
     if provider not in PROVIDERS_CONFIG:
         return HTMLResponse(content="Invalid Provider", status_code=400)
     
-    models = PROVIDERS_CONFIG[provider]["available_models"]
+    models = PROVIDERS_CONFIG[provider]["models"]
     
-    # We create a simple list of buttons for the model dropdown
     # This is used by the New Chat state to refresh options
     return templates.TemplateResponse("model_options_list.html", {
         "request": request,
@@ -474,59 +580,7 @@ async def get_model_options(request: Request, provider: str, current_model: str 
         "conversation_id": "new" 
     })
 
-@app.patch("/chat/{conv_id}/model", response_class=HTMLResponse)
-async def set_model(request: Request, conv_id: str, data: SetModelModel):
-    if conv_id not in chats:
-        return HTMLResponse(content="Not Found", status_code=404)
-    
-    # Validation: model should exist in current provider's list
-    provider = chats[conv_id].get("provider", default_provider)
-    if data.model not in PROVIDERS_CONFIG[provider]["available_models"]:
-         return HTMLResponse(content="Invalid Model", status_code=400)
-
-    chats[conv_id]["model"] = data.model
-    
-    return templates.TemplateResponse("model_dropdown.html", {
-        "request": request,
-        "conversation_id": conv_id,
-        "providers_config": PROVIDERS_CONFIG,
-        "current_provider": provider,
-        "current_model": data.model
-    })
-
-@app.patch("/chat/{conv_id}/provider", response_class=HTMLResponse)
-async def set_provider(request: Request, conv_id: str, data: SetProviderModel):
-    if conv_id not in chats:
-        return HTMLResponse(content="Not Found", status_code=404)
-    
-    if data.provider not in PROVIDERS_CONFIG:
-        return HTMLResponse(content="Invalid Provider", status_code=400)
-    
-    chats[conv_id]["provider"] = data.provider
-    # Reset to default model for this provider
-    chats[conv_id]["model"] = PROVIDERS_CONFIG[data.provider]["default_model"]
-    
-    return templates.TemplateResponse("model_dropdown.html", {
-        "request": request,
-        "conversation_id": conv_id,
-        "providers_config": PROVIDERS_CONFIG,
-        "current_provider": chats[conv_id]["provider"],
-        "current_model": chats[conv_id]["model"]
-    })
-
 # Side bar--- 
-class RenameModel(BaseModel):
-    title: str
-
-class CreateFolderModel(BaseModel):
-    name: str
-
-class RenameFolderModel(BaseModel):
-    name: str
-
-class MoveChatModel(BaseModel):
-    folder_id: Optional[str] = None  # None means "move to Recent/unsorted"
-
 @app.get("/sidebar", response_class=HTMLResponse)
 async def get_sidebar(request: Request, current_id: str = None):
     """Returns the full sidebar with folders and recent chats."""
@@ -728,4 +782,3 @@ async def move_chat_to_folder(request: Request, conv_id: str, data: MoveChatMode
         response_parts.append(f'<div id="folder-chats-{new_folder_id}" hx-swap-oob="afterbegin">{chat_html}</div>')
     
     return HTMLResponse(content="".join(response_parts))
-

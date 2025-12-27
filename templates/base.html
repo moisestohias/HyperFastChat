@@ -6,7 +6,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Chat UI{% endblock %}</title>
 
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>µ</text></svg>" type="image/svg+xml">
+    <link rel="icon"
+        href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>µ</text></svg>"
+        type="image/svg+xml">
 
     <script src="https://unpkg.com/htmx.org@1.9.10"></script>
     <script src="https://unpkg.com/htmx.org@1.9.10/dist/ext/sse.js"></script>
@@ -44,7 +46,7 @@
     <button id="sidebar-toggle"
         class="fixed top-4 left-4 z-50 p-2 rounded-lg bg-zinc-800/50 backdrop-blur-md text-gray-400 hover:text-white border border-gray-700 hover:border-gray-500 transition-all shadow-lg"
         _="on click 
-               if #sidebar.classList.contains('sidebar-w-collapsed')
+               if #sidebar matches .sidebar-w-collapsed
                  remove .sidebar-w-collapsed from #sidebar then add .sidebar-w-expanded to #sidebar
                  send expanded to #sidebar-content
                  set localStorage.sidebarStatus to 'expanded'
@@ -60,6 +62,34 @@
     <main class="flex-1 flex flex-col h-screen overflow-hidden">
         {% block content %}{% endblock %}
     </main>
+
+    <!-- Right Sidebar (NEW) -->
+    <aside id="right-sidebar" class="h-screen bg-[#0d0d0d] right-sidebar-collapsed" _="on load if localStorage.rightSidebarStatus is 'expanded' 
+              remove .right-sidebar-collapsed from me
+              add .right-sidebar-expanded to me">
+        {% include "right_sidebar.html" %}
+    </aside>
+
+    <!-- Right Sidebar Toggle -->
+    <button id="right-sidebar-toggle"
+        class="fixed top-4 right-4 z-50 p-2 rounded-lg bg-zinc-800/50 backdrop-blur-md text-gray-400 hover:text-white border border-gray-700 hover:border-gray-500 transition-all shadow-lg"
+        _="on click 
+           if #right-sidebar matches .right-sidebar-collapsed
+             remove .right-sidebar-collapsed from #right-sidebar then add .right-sidebar-expanded to #right-sidebar
+             set localStorage.rightSidebarStatus to 'expanded'
+           else
+             remove .right-sidebar-expanded from #right-sidebar then add .right-sidebar-collapsed to #right-sidebar
+             set localStorage.rightSidebarStatus to 'collapsed'">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+        </svg>
+    </button>
+
+    <!-- Floating Model Info Popup -->
+    <div id="model-info-popup" class="hidden absolute pointer-events-none"></div>
 </body>
 
 </html>

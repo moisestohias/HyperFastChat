@@ -58,7 +58,7 @@ class APIExecutor:
         """Add a message to the conversation history."""
         self.messages.append({"role": role, "content": content})
 
-    def prepare_request_data(self, prompt: Union[str, List[Dict[str, str]]], stream: bool = False) -> Dict[str, Any]:
+    def prepare_request_data(self, prompt: Union[str, List[Dict[str, str]]], stream: bool = False, **kwargs) -> Dict[str, Any]:
         """Prepare the request data for the API call."""
         if isinstance(prompt, str):
             # Add user message to history
@@ -75,6 +75,13 @@ class APIExecutor:
             "temperature": self.temperature,
             "max_completion_tokens": self.max_completion_tokens
         }
+        
+        # Override defaults with any provided keyword arguments
+        if kwargs:
+            # Handle mapping 'max_tokens' to 'max_completion_tokens' if needed by some providers
+            if 'max_tokens' in kwargs and 'max_completion_tokens' not in data:
+                 data['max_completion_tokens'] = kwargs.pop('max_tokens')
+            data.update(kwargs)
 
         if stream:
             data["stream"] = True
@@ -206,16 +213,16 @@ class SyncAPIClient:
         """Send a synchronous POST request."""
         return self._http_client.request('POST', url, headers=headers, body=body, timeout=timeout)
 
-    def send(self, messages_for_request: List[dict]) -> List[dict]:
-        data = self._executor.prepare_request_data(messages_for_request, stream=False)
+    def send(self, messages_for_request: List[dict], **kwargs) -> List[dict]:
+        data = self._executor.prepare_request_data(messages_for_request, stream=False, **kwargs)
         url, headers, body = self._executor.get_request_config(data)
         response = self.post(url, headers=headers, body=body, timeout=self._executor.timeout)
         assistant_message = self._executor.process_non_streaming_response(response)
         return assistant_message
 
-    def chat(self, prompt: str, stream: bool = False) -> Union[str, Iterator[str]]:
+    def chat(self, prompt: str, stream: bool = False, **kwargs) -> Union[str, Iterator[str]]:
         """Send a chat message and get a response."""
-        data = self._executor.prepare_request_data(prompt, stream)
+        data = self._executor.prepare_request_data(prompt, stream, **kwargs)
 
         if stream:
             return self._stream_chat(data)
@@ -326,16 +333,16 @@ class AsyncAPIClient:
         """Send a asynchronous POST request."""
         return await self._http_client.request('POST', url, headers=headers, body=body, timeout=timeout)
 
-    async def send(self, messages_for_request: List[dict]) -> List[dict]:
-        data = self._executor.prepare_request_data(messages_for_request, stream=False)
+    async def send(self, messages_for_request: List[dict], **kwargs) -> List[dict]:
+        data = self._executor.prepare_request_data(messages_for_request, stream=False, **kwargs)
         url, headers, body = self._executor.get_request_config(data)
         response = await self.post(url, headers=headers, body=body, timeout=self._executor.timeout)
         assistant_message = self._executor.process_non_streaming_response(response)
         return assistant_message
 
-    async def chat(self, prompt: str, stream: bool = False) -> Union[str, AsyncIterator[str]]:
+    async def chat(self, prompt: str, stream: bool = False, **kwargs) -> Union[str, AsyncIterator[str]]:
         """Send a chat message and get a response."""
-        data = self._executor.prepare_request_data(prompt, stream)
+        data = self._executor.prepare_request_data(prompt, stream, **kwargs)
 
         if stream:
             # Don't await here - return the async generator directly
