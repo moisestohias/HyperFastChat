@@ -52,8 +52,8 @@ This document outlines critical failures encountered during the implementation o
 **Mistake**: Starting a line with a selector or a naked method call like `#id.focus()`.
 - **Example of Failure**: `#rename-input.focus()`
 - **Result**: `Unexpected Token: #` (Hyperscript expects a command keyword at the start of a line).
-- **Rule**: Every line in a Hyperscript block must begin with a valid command (e.g., `add`, `remove`, `focus`, `call`).
-- **How to Fix**: Use the structured `focus()` command: `focus() on #selector`.
+- **Rule**: Every line in a Hyperscript block must begin with a valid command (e.g., `add`, `remove`, `set`, `call`). Note that `focus` is not a command.
+- **How to Fix**: Use the `call` command to invoke the native DOM `.focus()` method: `call #selector.focus()`.
 
 ## 8. Multi-Token Selectors & Selector Ambiguity
 **Mistake**: Using space-separated descendant selectors directly in commands like `add`, `remove`, or `toggle`.

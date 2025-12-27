@@ -1,5 +1,5 @@
 <aside id="sidebar"
-    class="h-screen bg-[#0d0d0d] flex-shrink-0 flex flex-col border-r border-gray-800 transition-all duration-300 ease-in-out relative z-40 {{ 'sidebar-w-expanded' if not collapsed else 'sidebar-w-collapsed' }}"
+    class="h-screen bg-[#0d0d0d] flex-shrink-0 flex flex-col border-r border-gray-800 transition-all duration-300 ease-in-out relative z-40 {{ 'sidebar-w-expanded' if not collapsed else 'sidebar-w-collapsed' }} select-none"
     _="on load 
           if localStorage.sidebarStatus is 'collapsed' 
             add .sidebar-w-collapsed to me 
@@ -27,18 +27,50 @@
             </a>
         </div>
 
-        <!-- Middle Section (30% placeholder) -->
-        <div class="h-[30%] flex flex-col px-3 gap-2 opacity-50 select-none">
-            <div class="text-[10px] font-bold text-gray-500 uppercase tracking-widest px-3 mt-4">Library</div>
-            <div class="px-3 py-2 text-xs text-gray-600 italic">Folders & Projects coming soon...</div>
+        <!-- Folders Section -->
+        <div class="flex flex-col px-3 gap-1 mb-4">
+            <div class="flex items-center justify-between px-3 mt-2">
+                <span class="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Folders</span>
+                <button id="create-folder-btn"
+                    class="p-1 rounded hover:bg-gray-800 text-gray-500 hover:text-gray-300 transition-colors"
+                    title="Create Folder" _="on click
+                        remove .hidden from #new-folder-input
+                        then call #new-folder-input-field.focus()">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                    </svg>
+                </button>
+            </div>
+
+            <!-- New Folder Input (hidden by default) -->
+            <div id="new-folder-input" class="hidden px-2 mb-2">
+                <input type="text" id="new-folder-input-field" name="name" placeholder="Folder name..."
+                    class="w-full bg-zinc-800 text-sm text-white px-3 py-2 rounded-lg border border-blue-500 outline-none"
+                    hx-post="/folders" hx-trigger="keyup[key=='Enter']" hx-ext="json-enc" _="on keyup[key=='Escape'] 
+                        add .hidden to #new-folder-input
+                        set my value to ''
+                      on htmx:afterRequest
+                        add .hidden to #new-folder-input
+                        set my value to ''">
+            </div>
+
+            <!-- Folders List -->
+            <div id="folders-list" class="space-y-1 max-h-[30vh] overflow-y-auto custom-scrollbar">
+                {% for folder in folders %}
+                {% include "folder_item.html" %}
+                {% endfor %}
+            </div>
         </div>
 
-        <!-- Bottom Section: Conversations -->
+        <!-- Divider -->
+        <div class="h-px bg-gray-800 mx-6 my-3"></div>
+
+        <!-- Recent (Unsorted) Section -->
         <div class="flex-1 flex flex-col overflow-hidden">
             <div class="text-[10px] font-bold text-gray-500 uppercase tracking-widest px-6 mb-2">Recent</div>
             <div id="sidebar-list" class="flex-1 overflow-y-auto px-3 space-y-1 custom-scrollbar">
                 {% for conv in conversations %}
-                {% with conv_id=conv.id, title=conv.title, active=(current_id == conv.id) %}
+                {% with conv_id=conv.id, title=conv.title, active=(current_id == conv.id), all_folders=all_folders %}
                 {% include "sidebar_item.html" %}
                 {% endwith %}
                 {% endfor %}

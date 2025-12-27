@@ -1,5 +1,5 @@
 <div id="side-item-{{ conv_id }}"
-    class="group relative flex items-center gap-3 px-3 py-2 rounded-xl transition-all duration-200 bg-zinc-900 {{ 'bg-zinc-800 text-white' if active else 'text-gray-400 hover:bg-zinc-800/50 hover:text-gray-200' }}">
+    class="group relative flex items-center gap-3 px-3 py-1 rounded-xl transition-all duration-200 bg-zinc-10 {{ 'bg-zinc-800 text-white' if active else 'text-gray-400 hover:bg-zinc-800/50 hover:text-gray-200' }}">
 
     <!-- Title Area (View/Edit) -->
     <div class="flex-1 min-w-0 relative">
@@ -44,10 +44,62 @@
         </button>
 
         <!-- Context Menu Dropdown -->
-        <div class="context-menu hidden absolute right-0 mt-2 w-32 bg-zinc-900 border border-gray-700 rounded-lg shadow-xl overflow-hidden"
+        <div class="context-menu hidden absolute right-0 mt-2 w-44 bg-zinc-900 border border-gray-700 rounded-lg shadow-xl overflow-visible"
             _="on click elsewhere
                  add .hidden to me
                  send menuClosed to my parentElement">
+
+            <!-- Move to Folder Submenu -->
+            <div class="relative group/move">
+                <button
+                    class="w-full flex items-center justify-between px-4 py-2 text-sm text-gray-300 hover:bg-zinc-700 transition-colors rounded-lg"
+                    _="on click
+                        set submenu to next .folder-submenu
+                        toggle .hidden on submenu
+                        if submenu is not .hidden
+                          measure me
+                          set submenu.style.top to (it.top as String) + 'px'
+                        end
+                        halt">
+                    <span>Move to Folder</span>
+                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                    </svg>
+                </button>
+
+                <!-- Folder Submenu -->
+                <div class="folder-submenu hidden fixed left-[245px] mt-2 w-40 bg-zinc-900 border border-gray-700 rounded-lg shadow-xl overflow-hidden max-h-60 overflow-y-auto z-[60]"
+                    _="on click elsewhere add .hidden to me">
+
+                    <!-- Move to Recent (None) -->
+                    <button hx-patch="/chat/{{ conv_id }}/folder" hx-vals='js:{"folder_id": null}' hx-ext="json-enc"
+                        hx-swap="none"
+                        class="w-full text-left px-4 py-2 text-sm text-blue-400 hover:bg-zinc-700 transition-colors border-b border-gray-800"> Unsorted
+                    </button>
+
+                    <!-- Dynamic folder list (injected via context) -->
+                    <!-- DEBUG: all_folders = {{ all_folders|length if all_folders else 'None' }} -->
+                    {% for folder in all_folders %}
+                    <button hx-patch="/chat/{{ conv_id }}/folder" hx-vals='js:{"folder_id": "{{ folder.id }}"}'
+                        hx-ext="json-enc" hx-swap="none"
+                        class="w-full text-left px-4 py-2 text-sm text-gray-300 hover:bg-zinc-700 transition-colors flex items-center gap-2">
+                        <!-- <span style="color: {{ folder.color or '#9CA3AF' }}">📁</span> -->
+                        <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                              d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                        </svg>
+                        <span class="truncate">{{ folder.name }}</span>
+                    </button>
+                    {% endfor %}
+
+                    {% if not all_folders %}
+                    <div class="px-4 py-2 text-xs text-gray-500 italic">No folders yet</div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="h-px bg-gray-800"></div>
+
             <button hx-delete="/chat/{{ conv_id }}" hx-target="#side-item-{{ conv_id }}" hx-swap="outerHTML"
                 class="w-full text-left px-4 py-2 text-sm text-red-400 hover:bg-red-400/10 transition-colors">
                 Delete
@@ -55,7 +107,7 @@
             <button class="w-full text-left px-4 py-2 text-sm text-gray-300 hover:bg-zinc-700 transition-colors" _="on click
                    add .hidden to #title-btn-{{ conv_id }}
                    remove .hidden from #rename-input-{{ conv_id }}
-                   focus() on #rename-input-{{ conv_id }}
+                   then call #rename-input-{{ conv_id }}.focus()
                    add .hidden to my parentElement
                    send menuClosed to my parentElement.parentElement">
                 Rename

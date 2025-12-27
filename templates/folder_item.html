@@ -1,0 +1,94 @@
+<div id="folder-{{ folder.id }}" class="group rounded-lg transition-all duration-200" data-folder-id="{{ folder.id }}">
+
+    <!-- Folder Header -->
+    <div class="flex items-center gap-2 px-3 py-1 rounded-lg hover:bg-zinc-800/50 cursor-pointer transition-colors" _="on click
+            toggle .hidden on #folder-chats-{{ folder.id }}
+            toggle .rotate-90 on #folder-chevron-{{ folder.id }}">
+
+        <!-- Chevron -->
+<!--         <svg id="folder-chevron-{{ folder.id }}" class="w-3 h-3 text-gray-500 transition-transform duration-200"
+            fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+        </svg>
+ -->
+        <!-- Folder Icon (colored if set) -->
+        <svg class="w-4 h-4 {{ 'text-blue-400' if folder.color else 'text-gray-400' }}" fill="none"
+            stroke="currentColor" viewBox="0 0 24 24" {% if folder.color %}style="color: {{ folder.color }}" {% endif
+            %}>
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+        </svg>
+
+        <!-- Folder Name -->
+        <span id="folder-name-{{ folder.id }}" class="flex-1 text-sm text-gray-300 truncate">
+            {{ folder.name }}
+        </span>
+
+        <!-- Chat Count Badge -->
+        <span class="text-xs text-gray-500 bg-zinc-800 px-1.5 py-0.5 rounded-full">
+            {{ folder.chat_count }}
+        </span>
+
+        <!-- Folder Context Menu Trigger -->
+        <div class="folder-menu-trigger opacity-0 group-hover:opacity-100 transition-opacity relative"
+            _="on click halt">
+            <button class="p-1 hover:bg-zinc-700 rounded text-gray-400 hover:text-white" _="on click
+                    toggle .hidden on next .folder-context-menu
+                    halt">
+                <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                    <path
+                        d="M6 10a2 2 0 11-4 0 2 2 0 014 0zM12 10a2 2 0 11-4 0 2 2 0 014 0zM18 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                </svg>
+            </button>
+
+            <!-- Folder Context Menu -->
+            <!-- class="folder-context-menu hidden absolute right-2 mt-1 w-36 bg-zinc-900 border border-gray-700 rounded-lg shadow-xl overflow-hidden z-50" -->
+            <div class="folder-context-menu hidden fixed left-[100px] mt-3 w-36 bg-zinc-900 border border-gray-700 rounded-lg shadow-xl overflow-hidden z-50"
+                _="on click elsewhere add .hidden to me
+                   on click halt">
+
+                <button class="w-full text-left px-4 py-2 text-sm text-gray-300 hover:bg-zinc-700 transition-colors" _="on click
+                        remove .hidden from #folder-rename-{{ folder.id }}
+                        add .hidden to #folder-name-{{ folder.id }}
+                        then call #folder-rename-{{ folder.id }}.focus()
+                        add .hidden to my parentElement
+                        halt">
+                    Rename
+                </button>
+
+                <button hx-delete="/folders/{{ folder.id }}?action=unassign" hx-target="#folder-{{ folder.id }}"
+                    hx-swap="outerHTML" hx-confirm="Move all chats to Recent and delete this folder?"
+                    class="w-full text-left px-4 py-2 text-sm text-red-400 hover:bg-red-400/10 transition-colors"
+                    _="on click halt">
+                    Delete (Keep Chats)
+                </button>
+
+                <button hx-delete="/folders/{{ folder.id }}?action=delete" hx-target="#folder-{{ folder.id }}"
+                    hx-swap="outerHTML"
+                    hx-confirm="This will permanently delete the folder AND all chats inside. Are you sure?"
+                    class="w-full text-left px-4 py-2 text-sm text-red-500 hover:bg-red-500/10 transition-colors"
+                    _="on click halt">
+                    Delete All
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Folder Rename Input (hidden) -->
+    <input type="text" id="folder-rename-{{ folder.id }}" value="{{ folder.name }}"
+        class="hidden w-full bg-zinc-800 text-sm text-white px-3 py-1 mx-3 rounded border border-blue-500 outline-none"
+        hx-patch="/folders/{{ folder.id }}" hx-trigger="keyup[key=='Enter']" hx-target="#folder-name-{{ folder.id }}"
+        hx-swap="innerHTML" hx-ext="json-enc" _="on keyup[key=='Escape'] or blur
+            add .hidden to me
+            remove .hidden from #folder-name-{{ folder.id }}
+          on htmx:afterRequest
+            add .hidden to me
+            remove .hidden from #folder-name-{{ folder.id }}">
+
+    <!-- Folder Chats Container (collapsible, lazy-loaded) -->
+    <div id="folder-chats-{{ folder.id }}" class="hidden pl-6 pr-2 space-y-1" hx-get="/folders/{{ folder.id }}/chats"
+        hx-trigger="intersect once" hx-swap="innerHTML">
+        <!-- Chats will be loaded here -->
+        <div class="text-xs text-gray-600 py-2 animate-pulse">Loading...</div>
+    </div>
+</div>

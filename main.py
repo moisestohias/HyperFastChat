@@ -10,23 +10,65 @@ from typing import Annotated
 
 from fastapi.staticfiles import StaticFiles
 from LLMConnect.api_client_factory import APIClientFactory, Provider
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+from datetime import datetime
+from typing import Optional, List, Dict
 
 templates = Jinja2Templates(directory="templates")
 app = FastAPI()
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
-# In-memory storage for conversations
-chats = {}
-DB_PATH = "db.json" # temporary for testing
+# --- Data Models ---
+class InferenceParameters(BaseModel):
+    context_length: int = 262144
+    max_completion_tokens: int = 16384
+    temperature: float = 0.7
+    top_p: float = 0.95
+
+class Conversation(BaseModel):
+    id: str
+    title: str = "Untitled"
+    messages: List[dict] = Field(default_factory=list)
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    provider: str
+    model: str
+    inference_parameters: InferenceParameters = Field(default_factory=InferenceParameters)
+    folder_id: Optional[str] = None
+    is_pinned: bool = False
+    is_archived: bool = False
+
+class Folder(BaseModel):
+    id: str
+    name: str
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    color: Optional[str] = None
+    icon: Optional[str] = "folder"
+    sort_order: int = 0
+
+# In-memory storage
+chats: Dict[str, dict] = {}
+folders: Dict[str, dict] = {}
+DB_PATH = "db.json"
+
 def read_db_from_disk():
-  with open(DB_PATH) as f: return json.load(f)
-chats = read_db_from_disk()
+    try:
+        with open(DB_PATH, "r") as f:
+            data = json.load(f)
+            # Handle old format where it was just the chats dict
+            if isinstance(data, dict) and "chats" in data:
+                return data.get("chats", {}), data.get("folders", {})
+            return data, {} # Old format
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {}, {}
+
+chats, folders = read_db_from_disk()
 
 def write_db_to_disk():
-  with open(DB_PATH, "wt") as f:
-    json.dump(chats, f, indent=2)
+    with open(DB_PATH, "wt") as f:
+        json.dump({"chats": chats, "folders": folders}, f, indent=2, default=str)
 # ---
 
 def load_providers_config():
@@ -69,6 +111,7 @@ async def get_chat(request: Request, conv_id: str):
     # Initialize conversation if it doesn't exist
     if conv_id not in chats:
         chats[conv_id] = {
+            "id": conv_id,
             "title": "Untitled",
             "provider": default_provider,
             "model": PROVIDERS_CONFIG[default_provider]["default_model"],
@@ -77,7 +120,10 @@ async def get_chat(request: Request, conv_id: str):
                     "role": "system",
                     "content": DEFAULT_SYSTEM_PROMPT
                 }
-            ]
+            ],
+            "timestamp": datetime.utcnow().isoformat(),
+            "updated_at": datetime.utcnow().isoformat(),
+            "folder_id": None
         }
     
     # Get messages for rendering (skipping system message for UI)
@@ -107,12 +153,16 @@ async def send_message(request: Request, conv_id: str, form_data: Annotated[Mess
             title += "..."
         
         chats[actual_conv_id] = {
+            "id": actual_conv_id,
             "title": title,
             "provider": form_data.provider,
             "model": form_data.model,
             "messages": [
                 {"role": "system", "content": DEFAULT_SYSTEM_PROMPT}
-            ]
+            ],
+            "timestamp": datetime.utcnow().isoformat(),
+            "updated_at": datetime.utcnow().isoformat(),
+            "folder_id": None
         }
 
     if actual_conv_id not in chats:
@@ -186,7 +236,8 @@ async def send_message(request: Request, conv_id: str, form_data: Annotated[Mess
             "request": request,
             "conv_id": actual_conv_id,
             "title": chats[actual_conv_id]["title"],
-            "active": True
+            "active": True,
+            "all_folders": [f for f in folders.values()]
         })
         # We'll use hx-swap-oob to prepend the new conversation to the sidebar list
         response_content += f'<div id="sidebar-list" hx-swap-oob="afterbegin">{sidebar_item_html}</div>'
@@ -467,14 +518,46 @@ async def set_provider(request: Request, conv_id: str, data: SetProviderModel):
 class RenameModel(BaseModel):
     title: str
 
+class CreateFolderModel(BaseModel):
+    name: str
+
+class RenameFolderModel(BaseModel):
+    name: str
+
+class MoveChatModel(BaseModel):
+    folder_id: Optional[str] = None  # None means "move to Recent/unsorted"
+
 @app.get("/sidebar", response_class=HTMLResponse)
 async def get_sidebar(request: Request, current_id: str = None):
-    conv_list = [{"id": cid, "title": data.get("title", "Untitled")} for cid, data in reversed(list(chats.items()))]
+    """Returns the full sidebar with folders and recent chats."""
+    
+    # Build folder list with their chat counts
+    folder_list = []
+    for fid, folder in folders.items():
+        folder_chats = [cid for cid, chat in chats.items() if chat.get("folder_id") == fid]
+        folder_list.append({
+            "id": fid,
+            "name": folder["name"],
+            "color": folder.get("color"),
+            "chat_count": len(folder_chats),
+            "sort_order": folder.get("sort_order", 0)
+        })
+    folder_list.sort(key=lambda f: f["sort_order"])
+    
+    # Build recent (unsorted) chat list
+    recent_chats = [
+        {"id": cid, "title": data.get("title", "Untitled")}
+        for cid, data in reversed(list(chats.items()))
+        if data.get("folder_id") is None
+    ]
+    
     return templates.TemplateResponse("sidebar.html", {
-        "request": request,
-        "conversations": conv_list,
-        "current_id": current_id
-    })
+            "request": request,
+            "folders": folder_list,
+            "conversations": recent_chats,
+            "current_id": current_id,
+            "all_folders": folder_list  # For move-to-folder submenu
+        })
 
 @app.patch("/chat/{conv_id}/rename", response_class=HTMLResponse)
 async def rename_chat(conv_id: str, data: RenameModel):
@@ -497,4 +580,152 @@ async def delete_chat(conv_id: str):
         del chats[conv_id]
         write_db_to_disk()
     return HTMLResponse(content="")
+
+# -------------------------
+# FOLDER MANAGEMENT ROUTES
+# -------------------------
+
+@app.post("/folders", response_class=HTMLResponse)
+async def create_folder(request: Request, data: CreateFolderModel):
+    """Create a new folder and return the updated folders section."""
+    folder_id = str(uuid.uuid4())
+    folders[folder_id] = {
+        "id": folder_id,
+        "name": data.name.strip()[:50],  # Limit name length
+        "created_at": datetime.utcnow().isoformat(),
+        "updated_at": datetime.utcnow().isoformat(),
+        "color": None,
+        "icon": "folder",
+        "sort_order": len(folders)
+    }
+    write_db_to_disk()
+    
+    # Return new folder item for OOB injection
+    folder_html = templates.get_template("folder_item.html").render({
+        "request": request,
+        "folder": folders[folder_id],
+        "conversations": []  # New folder has no chats
+    })
+    return HTMLResponse(
+        content=f'<div id="folders-list" hx-swap-oob="beforeend">{folder_html}</div>',
+        status_code=201
+    )
+
+
+@app.patch("/folders/{folder_id}", response_class=HTMLResponse)
+async def rename_folder(folder_id: str, data: RenameFolderModel):
+    """Rename an existing folder."""
+    if folder_id not in folders:
+        return HTMLResponse(content="Folder not found", status_code=404)
+    
+    folders[folder_id]["name"] = data.name.strip()[:50]
+    folders[folder_id]["updated_at"] = datetime.utcnow().isoformat()
+    write_db_to_disk()
+    
+    return HTMLResponse(content=folders[folder_id]["name"])
+
+
+@app.delete("/folders/{folder_id}", response_class=HTMLResponse)
+async def delete_folder(request: Request, folder_id: str, action: str = "unassign"):
+    """
+    Delete a folder with configurable behavior for contained chats.
+    """
+    if folder_id not in folders:
+        return HTMLResponse(content="Folder not found", status_code=404)
+    
+    affected_chats = [cid for cid, chat in chats.items() if chat.get("folder_id") == folder_id]
+    
+    if action == "delete":
+        # Delete all chats in this folder
+        for cid in affected_chats:
+            del chats[cid]
+    else:
+        # Unassign: move chats to Recent
+        for cid in affected_chats:
+            chats[cid]["folder_id"] = None
+    
+    del folders[folder_id]
+    write_db_to_disk()
+    
+    # Return OOB swap to remove folder from DOM and optionally add chats to Recent
+    response_html = ""
+    if action == "unassign":
+        remaining_folders = [f for f in folders.values()]
+        for cid in affected_chats:
+            chat_html = templates.get_template("sidebar_item.html").render({
+                "request": request,
+                "conv_id": cid,
+                "title": chats[cid]["title"],
+                "active": False,
+                "all_folders": remaining_folders
+            })
+            response_html += f'<div id="sidebar-list" hx-swap-oob="afterbegin">{chat_html}</div>'
+    
+    return HTMLResponse(content=response_html)
+
+
+@app.get("/folders/{folder_id}/chats", response_class=HTMLResponse)
+async def get_folder_chats(request: Request, folder_id: str):
+    """Get all chats within a folder for lazy-loading accordion content."""
+    if folder_id not in folders:
+        return HTMLResponse(content="Folder not found", status_code=404)
+    
+    folder_chats = [
+        {"id": cid, "title": chat["title"]}
+        for cid, chat in chats.items()
+        if chat.get("folder_id") == folder_id
+    ]
+    
+    return templates.TemplateResponse("folder_chats_list.html", {
+        "request": request,
+        "conversations": folder_chats,
+        "all_folders": [f for f in folders.values()]
+    })
+
+@app.patch("/chat/{conv_id}/folder", response_class=HTMLResponse)
+async def move_chat_to_folder(request: Request, conv_id: str, data: MoveChatModel):
+    """
+    Move a chat to a folder or to Recent (folder_id=None).
+    Returns OOB swaps to update the sidebar DOM.
+    """
+    if conv_id not in chats:
+        return HTMLResponse(content="Conversation not found", status_code=404)
+    
+    if data.folder_id is not None and data.folder_id not in folders:
+        return HTMLResponse(content="Folder not found", status_code=404)
+    
+    old_folder_id = chats[conv_id].get("folder_id")
+    new_folder_id = data.folder_id
+    
+    # No change needed
+    if old_folder_id == new_folder_id:
+        return HTMLResponse(content="")
+    
+    chats[conv_id]["folder_id"] = new_folder_id
+    chats[conv_id]["updated_at"] = datetime.utcnow().isoformat()
+    write_db_to_disk()
+    
+    # Build OOB response for DOM manipulation
+    chat_html = templates.get_template("sidebar_item.html").render({
+        "request": request,
+        "conv_id": conv_id,
+        "title": chats[conv_id]["title"],
+        "active": False,
+        "all_folders": [f for f in folders.values()] # Need folders for context menu in new location
+    })
+    
+    response_parts = []
+    
+    # 1. Remove from old location (old folder or Recent)
+    response_parts.append(f'<template id="side-item-{conv_id}" hx-swap-oob="delete"></template>')
+    
+    # 2. Add to new location
+    if new_folder_id is None:
+        # Moving to Recent
+        response_parts.append(f'<div id="sidebar-list" hx-swap-oob="afterbegin">{chat_html}</div>')
+    else:
+        # Moving to a folder
+        response_parts.append(f'<div id="folder-chats-{new_folder_id}" hx-swap-oob="afterbegin">{chat_html}</div>')
+    
+    return HTMLResponse(content="".join(response_parts))
 

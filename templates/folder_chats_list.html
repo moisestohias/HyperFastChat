@@ -1,0 +1,9 @@
+{% for conv in conversations %}
+{% with conv_id=conv.id, title=conv.title, active=False, all_folders=all_folders %}
+{% include "sidebar_item.html" %}
+{% endwith %}
+{% endfor %}
+
+{% if not conversations %}
+<div class="text-xs text-gray-600 py-2 px-3 italic">No chats in this folder</div>
+{% endif %}
