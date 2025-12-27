@@ -81,3 +81,36 @@ This document outlines critical failures encountered during the implementation o
 - **How to Fix**:
   1. Use the `class` keyword with quotes: `add class 'bg-zinc-700/50' to me`.
   2. Better: Avoid slashes in manipulated classes by using a solid color class or a custom CSS abstraction (e.g., `add .bg-zinc-700 to me`).
+
+## 11. Element Measurement & Display State
+**Mistake**: Attempting to `measure` an element immediately after toggling its visibility or while it is hidden.
+- **Example of Failure**: `toggle .hidden on #menu then measure #menu`
+- **Result**: `No such measurement as #menu` or incorrect dimensions (0x0).
+- **Rule**: Browser layout updates are not always synchronous. If an element was hidden, you **MUST** allow a brief pause for the browser to calculate its dimensions.
+- **How to Fix**: Use `wait 10ms` before calling `measure`.
+  ```hyperscript
+  toggle .hidden on #submenu
+  if #submenu is not .hidden
+    wait 10ms
+    measure #submenu
+    -- access dimensions via 'it'
+  end
+  ```
+
+## 12. Event Bubbling & Interaction Control
+**Mistake**: Clicking a nested interactive element (like a button inside a list item) triggers the parent's click event.
+- **Rule**: Explicitly stop event propagation for all nested interactive elements to prevent "bubbling" up to parents.
+- **How to Fix**: Use the `halt` keyword.
+  - `on click halt` (Stops both the event and further execution).
+  - Use `on click halt bubbling` if you only want to stop propagation but keep execution.
+  - **Best Practice**: Use `halt` on most contextual buttons (Rename, Delete, Close) within containers.
+
+## 13. Dynamic Style Assignment (Fixed Positioning)
+**Mistake**: Attempting to set complex string-based styles (like `top: 100px`) using standard JS property assignment syntax without proper casting or command structure.
+- **Rule**: When using `measure` results to position `fixed` elements, use the `set` command and ensure numeric values are cast to strings with units.
+- **How to Fix**:
+  ```hyperscript
+  measure me
+  set next .submenu's style.top to (it.top as String) + "px"
+  ```
+- **Context**: This is essential when using `position: fixed` to escape `overflow: hidden` containers while maintaining alignment with the trigger element.
